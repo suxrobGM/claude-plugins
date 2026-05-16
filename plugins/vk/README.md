@@ -9,25 +9,31 @@ VK.com channel for Claude Code — DM and group-chat bridge with message history
 /plugin install vk@sukhrob-claude-plugins
 ```
 
-Then save your VK community access token:
+Save your VK community access token, then restart with the channel attached:
 
 ```text
 /vk:configure <token>
 ```
 
-And restart with the channel attached:
-
 ```bash
 claude --dangerously-load-development-channels plugin:vk@sukhrob-claude-plugins
 ```
 
+On first inbound DM the bot replies with a 6-character pairing code — finish with `/vk:access pair <code>`.
+
+## Skills
+
+- `/vk:configure` — save `VK_TOKEN` to `~/.claude/channels/vk/.env`.
+- `/vk:access` — pair DMs, opt group chats in, manage allowlists and policy. Full surface in [ACCESS.md](ACCESS.md).
+- `/vk:status` — connection health and channel summary.
+
 ## Requirements
 
 - [Bun](https://bun.sh) on `$PATH` (the bundle is JavaScript, run with `bun`).
-- A VK community with bot capabilities + Bots Long Poll enabled.
+- A VK community with Bots Long Poll enabled and a token scoped `messages, photos, docs, manage`.
 
-Full setup walkthrough, including how to create the community and mint a token, is in the [source repository](https://github.com/suxrobgm/claude-vk/blob/main/docs/setup.md).
+Full setup walkthrough — creating the community, minting a token, enabling Long Poll — lives in the [source repository](https://github.com/suxrobgm/claude-vk/blob/main/docs/setup.md).
 
 ## Source
 
-This directory is a pre-built distribution. Source code and issue tracker live at [github.com/suxrobgm/claude-vk](https://github.com/suxrobgm/claude-vk).
+This directory is a pre-built distribution. Source code and issue tracker: [github.com/suxrobgm/claude-vk](https://github.com/suxrobgm/claude-vk).
