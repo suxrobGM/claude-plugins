@@ -71016,12 +71016,14 @@ var PendingPairSchema = t.Object({
 var AccessFileSchema = t.Object({
   version: t.Literal(1, { default: 1 }),
   dmPolicy: DmPolicySchema,
+  mentionPatterns: t.Array(t.String(), { default: [] }),
   chats: t.Record(t.String(), ChatEntrySchema),
   pendingPairs: t.Record(t.String(), PendingPairSchema)
 });
 var ACCESS_FILE_DEFAULTS = {
   version: 1,
   dmPolicy: "pairing",
+  mentionPatterns: [],
   chats: {},
   pendingPairs: {}
 };
@@ -71672,12 +71674,13 @@ var PENDING_TTL_MS = 10 * 60 * 1000;
 
 class PermissionRelayService {
   messaging;
+  access;
   mcp = null;
   notifier = null;
   pending = new Map;
-  lastDmActivator = null;
-  constructor(messaging) {
+  constructor(messaging, access2) {
     this.messaging = messaging;
+    this.access = access2;
   }
   setMcp(mcp) {
     this.mcp = mcp;
@@ -71685,15 +71688,12 @@ class PermissionRelayService {
   setNotifier(notifier) {
     this.notifier = notifier;
   }
-  recordLastDmActivator(peer_id, from_id) {
-    this.lastDmActivator = { peer_id, from_id };
-  }
   async handleRequest(params) {
     this.sweepExpired();
-    const activator = this.lastDmActivator;
+    const activator = this.findFirstDmActivator();
     if (!activator) {
-      logger.warn({ request_id: params.request_id }, "permission relay: no DM activator on file; cannot route");
-      await this.notifier?.warn(`permission relay: no recent DM on file; cannot route request ${params.request_id} \u2014 using terminal prompt`);
+      logger.warn({ request_id: params.request_id }, "permission relay: no paired DM in access.json; cannot route");
+      await this.notifier?.warn(`permission relay: no paired DM in access.json; cannot route request ${params.request_id} \u2014 pair a DM via /vk:access, falling back to terminal prompt`);
       return;
     }
     const text = formatPrompt(params);
@@ -71748,18 +71748,34 @@ class PermissionRelayService {
     }
     return true;
   }
+  findFirstDmActivator() {
+    const chats = this.access.get().chats;
+    for (const [key, entry] of Object.entries(chats)) {
+      if (entry.kind !== "dm") {
+        continue;
+      }
+      const peerId = Number(key);
+      if (!Number.isFinite(peerId) || peerId <= 0) {
+        continue;
+      }
+      return { peer_id: peerId, from_id: peerId };
+    }
+    return null;
+  }
   sweepExpired() {
     const cutoff = Date.now() - PENDING_TTL_MS;
     for (const [id, p2] of this.pending) {
-      if (p2.created_at < cutoff)
+      if (p2.created_at < cutoff) {
         this.pending.delete(id);
+      }
     }
   }
 }
 PermissionRelayService = __legacyDecorateClassTS([
   singleton_default(),
   __legacyMetadataTS("design:paramtypes", [
-    typeof MessagingService === "undefined" ? Object : MessagingService
+    typeof MessagingService === "undefined" ? Object : MessagingService,
+    typeof AccessStore === "undefined" ? Object : AccessStore
   ])
 ], PermissionRelayService);
 function formatPrompt(params) {
@@ -71829,21 +71845,25 @@ AccessGate = __legacyDecorateClassTS([
 // src/modules/access/mention.ts
 var CLUB_MENTION_RE = /\[club(\d+)\|[^\]]*\]/;
 var SCREEN_NAME_RE = /@([a-zA-Z0-9_.]+)/g;
+var REGEX_META_RE = /[.*+?^${}()|[\]\\]/g;
 
 class MentionDetector {
   recent;
   community;
-  constructor(recent, community) {
+  access;
+  constructor(recent, community, access2) {
     this.recent = recent;
     this.community = community;
+    this.access = access2;
   }
   detect(msg) {
     const identity = this.community.get();
     const communityId = identity?.id;
     const screenName = identity?.screenName?.toLowerCase();
+    const patterns = this.access.get().mentionPatterns;
     const signals = {
-      name_mention: this.hasNameMention(msg.text, communityId, screenName),
-      reply_to_bot: this.isReplyToBot(msg.peer_id, msg.reply_to),
+      name_mention: this.hasNameMention(msg.text, communityId, screenName, patterns),
+      reply_to_bot: this.isReplyToBot(msg.peer_id, msg.reply_to, msg.reply_to_from_id, communityId),
       keyboard_payload: false
     };
     logger.debug({
@@ -71857,7 +71877,7 @@ class MentionDetector {
     }, "mention detect");
     return signals;
   }
-  hasNameMention(text, communityId, screenName) {
+  hasNameMention(text, communityId, screenName, patterns) {
     if (!text)
       return false;
     const clubMatch = text.match(CLUB_MENTION_RE);
@@ -71872,11 +71892,23 @@ class MentionDetector {
           return true;
       }
     }
+    for (const pattern of patterns) {
+      if (!pattern) {
+        continue;
+      }
+      const re2 = new RegExp(`(?:^|\\W)${escapeRegex2(pattern)}(?=\\W|$)`, "i");
+      if (re2.test(text)) {
+        return true;
+      }
+    }
     return false;
   }
-  isReplyToBot(peerId, replyToCmid) {
+  isReplyToBot(peerId, replyToCmid, replyToFromId, communityId) {
     if (replyToCmid == null) {
       return false;
+    }
+    if (replyToFromId != null && communityId && replyToFromId === -Number(communityId)) {
+      return true;
     }
     for (const entry of this.recent.all()) {
       if (entry.peer_id === peerId && entry.conversation_message_id === replyToCmid) {
@@ -71890,9 +71922,13 @@ MentionDetector = __legacyDecorateClassTS([
   singleton_default(),
   __legacyMetadataTS("design:paramtypes", [
     typeof RecentSentMessages === "undefined" ? Object : RecentSentMessages,
-    typeof CommunityResolver === "undefined" ? Object : CommunityResolver
+    typeof CommunityResolver === "undefined" ? Object : CommunityResolver,
+    typeof AccessStore === "undefined" ? Object : AccessStore
   ])
 ], MentionDetector);
+function escapeRegex2(s2) {
+  return s2.replace(REGEX_META_RE, "\\$&");
+}
 
 // src/modules/inbound/attachments.ts
 import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
@@ -72048,9 +72084,6 @@ class InboundService {
         mentioned: msg.mentioned_bot,
         reply_to_bot: msg.is_reply_to_bot
       }, "channel notification emitted");
-      if (!msg.is_group_chat) {
-        this.permissionRelay.recordLastDmActivator(msg.peer_id, msg.from_id);
-      }
     } catch (err) {
       logger.error({ err }, "inbound handler crashed; transport continues");
     }
@@ -72123,6 +72156,7 @@ function vkMessageToInbound(m3) {
   const msg = m3 ?? {};
   const messageId = msg.conversation_message_id ?? msg.id ?? 0;
   const replyCmid = msg.reply_message?.conversation_message_id ?? msg.reply_message?.id;
+  const replyFromId = msg.reply_message?.from_id;
   const attachments = (msg.attachments ?? []).map((a13) => ({
     type: a13.type,
     url: pickAttachmentUrl(a13)
@@ -72135,6 +72169,7 @@ function vkMessageToInbound(m3) {
     text: msg.text ?? "",
     attachments,
     reply_to: replyCmid,
+    reply_to_from_id: replyFromId,
     is_group_chat: isGroupChat(peerId),
     mentioned_bot: false,
     is_reply_to_bot: false,
