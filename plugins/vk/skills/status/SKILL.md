@@ -23,8 +23,9 @@ into a single summary.
    `vk_connected`, `last_error`, `last_event_at`, plus `recent_messages_count`.
 4. `curl -s http://127.0.0.1:6060/admin/config` — effective config with
    `vk_token` redacted to `"***"`.
-5. `curl -s http://127.0.0.1:6060/admin/access/policies` — current DM and
-   group-chat policies.
+5. `curl -s http://127.0.0.1:6060/admin/access/policy` — current DM policy
+   (`pairing` or `allowlist`). Group chats are always opt-in via
+   `/vk:access group add` — no group policy exists.
 6. `curl -s http://127.0.0.1:6060/admin/access/chats` — allowed chat count
    and per-chat sender count.
 7. `curl -s http://127.0.0.1:6060/admin/access/pairings` — outstanding

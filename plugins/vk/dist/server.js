@@ -70958,9 +70958,11 @@ var SimpleErrorBodySchema = t.Object({
 var NullableString = t.Union([t.String(), t.Null()]);
 
 // src/modules/access/access.schema.ts
-var PolicySchema = t.Union([t.Literal("pairing"), t.Literal("allowlist")]);
-var DmPolicySchema = PolicySchema;
-var GroupChatPolicySchema = PolicySchema;
+var DmPolicySchema = t.Union([
+  t.Literal("pairing"),
+  t.Literal("allowlist"),
+  t.Literal("disabled")
+]);
 var ChatKindSchema = t.Union([t.Literal("dm"), t.Literal("group_chat")]);
 var MentionPolicySchema = t.Union([
   t.Literal("mention_only"),
@@ -70978,21 +70980,19 @@ var ChatEntrySchema = t.Object({
 var PendingPairSchema = t.Object({
   peer_id: t.Integer(),
   from_id: t.Integer(),
-  kind: ChatKindSchema,
   expires_at: t.String()
 });
 var AccessFileSchema = t.Object({
   version: t.Literal(1, { default: 1 }),
   policies: t.Object({
-    dm: DmPolicySchema,
-    group_chat: GroupChatPolicySchema
+    dm: DmPolicySchema
   }),
   chats: t.Record(t.String(), ChatEntrySchema),
   pending_pairs: t.Record(t.String(), PendingPairSchema)
 });
 var ACCESS_FILE_DEFAULTS = {
   version: 1,
-  policies: { dm: "pairing", group_chat: "pairing" },
+  policies: { dm: "pairing" },
   chats: {},
   pending_pairs: {}
 };
@@ -71003,21 +71003,24 @@ var PeerIdSenderParamSchema = t.Object({
   peer_id: NumericIdStringSchema,
   user_id: NumericIdStringSchema
 });
-var PeerTypeParamSchema = t.Object({
-  peer_type: t.Union([t.Literal("dm"), t.Literal("group_chat")])
-});
 var AddSenderBodySchema = t.Object({
   user_id: t.Optional(t.Integer()),
   screen_name: t.Optional(t.String({ minLength: 1 }))
 });
 var SetPolicyBodySchema = t.Object({
-  policy: t.Union([DmPolicySchema, GroupChatPolicySchema])
+  policy: DmPolicySchema
 });
 var SetMentionPolicyBodySchema = t.Object({
   policy: MentionPolicySchema
 });
 var ConsumePairingBodySchema = t.Object({
   code: t.String({ minLength: 6, maxLength: 6 })
+});
+var AddGroupBodySchema = t.Object({
+  peer_id: t.Integer(),
+  title: t.Optional(t.String({ minLength: 1 })),
+  allow: t.Optional(t.Array(t.Integer())),
+  mention_policy: t.Optional(MentionPolicySchema)
 });
 var ChatSummarySchema = t.Object({
   peer_id: t.Integer(),
@@ -71048,15 +71051,11 @@ var RemoveChatResponseSchema = t.Composite([
   t.Object({ peer_id: t.Integer() })
 ]);
 var PoliciesResponseSchema = t.Object({
-  dm: DmPolicySchema,
-  group_chat: GroupChatPolicySchema
+  dm: DmPolicySchema
 });
 var SetPolicyResponseSchema = t.Composite([
   OkResponseSchema,
-  t.Object({
-    peer_type: t.Union([t.Literal("dm"), t.Literal("group_chat")]),
-    policy: t.Union([DmPolicySchema, GroupChatPolicySchema])
-  })
+  t.Object({ dm: DmPolicySchema })
 ]);
 var SetMentionPolicyResponseSchema = t.Composite([
   OkResponseSchema,
@@ -71069,9 +71068,19 @@ var ConsumePairingOkSchema = t.Composite([
   OkResponseSchema,
   t.Object({ peer_id: t.Integer(), chat: ChatEntrySchema })
 ]);
+var AddGroupResponseSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({ peer_id: t.Integer(), chat: ChatEntrySchema })
+]);
 var PendingPairingsResponseSchema = t.Object({
   pending: t.Array(t.Object({ code: t.String(), pair: PendingPairSchema }))
 });
+
+// src/common/utils/peer.ts
+var GROUP_CHAT_PEER_OFFSET = 2000000000;
+function isGroupChat(peerId) {
+  return peerId >= GROUP_CHAT_PEER_OFFSET;
+}
 
 // src/modules/access/access.store.ts
 import { watch } from "fs";
@@ -71132,18 +71141,12 @@ import { randomInt } from "crypto";
 var ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 var CODE_LENGTH = 6;
 var TTL_MS2 = 10 * 60 * 1000;
-function pairingMessage(code, kind) {
-  const base = `Hi! I'm a Claude Code assistant. To connect this chat, the operator runs:
+function pairingMessage(code) {
+  return `Hi! I'm a Claude Code assistant. To connect this chat, the operator runs:
 
     /vk:access pair ${code}
 
 \u2026in their Claude session. The code expires in 10 minutes.`;
-  if (kind === "group_chat") {
-    return `${base}
-
-This is a group chat: mention me with \`@<community> <message>\` or reply to one of my messages to talk to me afterwards.`;
-  }
-  return base;
 }
 
 class PairingService {
@@ -71154,20 +71157,22 @@ class PairingService {
     this.messaging = messaging;
   }
   async emitCode(msg) {
+    if (msg.is_group_chat) {
+      logger.warn({ peer_id: msg.peer_id }, "pairing.emitCode called for a group chat \u2014 ignored (groups use explicit add)");
+      return;
+    }
     const code = generateCode();
     const now = new Date;
     const expiresAt = new Date(now.getTime() + TTL_MS2);
-    const kind = msg.is_group_chat ? "group_chat" : "dm";
     await this.access.update((draft) => {
       sweepExpired(draft.pending_pairs, now);
       draft.pending_pairs[code] = {
         peer_id: msg.peer_id,
         from_id: msg.from_id,
-        kind,
         expires_at: expiresAt.toISOString()
       };
     });
-    const text = pairingMessage(code, kind);
+    const text = pairingMessage(code);
     const result = await this.messaging.send({ peer_id: msg.peer_id, text });
     if (!result.ok) {
       logger.warn({ peer_id: msg.peer_id, code, err: result.code, msg: result.message }, "failed to send pairing code DM");
@@ -71186,8 +71191,8 @@ class PairingService {
         return;
       }
       const entry = {
-        kind: pending.kind,
-        senders: pending.kind === "group_chat" ? [] : [pending.from_id],
+        kind: "dm",
+        senders: [pending.from_id],
         added_at: now.toISOString(),
         added_by: "pairing"
       };
@@ -71301,6 +71306,25 @@ class AccessService {
       c2.senders = c2.senders.filter((s2) => s2 !== userId);
     });
   }
+  async addGroup(input) {
+    if (!isGroupChat(input.peer_id)) {
+      throw new BadRequestError("not-a-group-chat-peer-id");
+    }
+    const key = String(input.peer_id);
+    const now = new Date().toISOString();
+    const entry = {
+      kind: "group_chat",
+      senders: input.allow ? Array.from(new Set(input.allow)) : [],
+      mention_policy: input.mention_policy ?? "mention_only",
+      added_at: now,
+      added_by: "manual",
+      ...input.title ? { title: input.title } : {}
+    };
+    await this.store.update((draft) => {
+      draft.chats[key] = entry;
+    });
+    return { peer_id: input.peer_id, chat: entry };
+  }
   requireChat(peerId) {
     const chat = this.store.get().chats[peerId];
     if (!chat)
@@ -71308,16 +71332,13 @@ class AccessService {
     return chat;
   }
   getPolicies() {
-    return this.store.get().policies;
+    return { dm: this.store.get().policies.dm };
   }
-  async setPolicy(peerType, policy) {
+  async setDmPolicy(policy) {
     await this.store.update((draft) => {
-      if (peerType === "dm")
-        draft.policies.dm = policy;
-      else
-        draft.policies.group_chat = policy;
+      draft.policies.dm = policy;
     });
-    return { peer_type: peerType, policy };
+    return { dm: policy };
   }
   async setMentionPolicy(peerId, policy) {
     const chat = this.requireChat(peerId);
@@ -71381,17 +71402,18 @@ var accessController = new Elysia({
   params: PeerIdParamSchema,
   body: SetMentionPolicyBodySchema,
   response: SetMentionPolicyResponseSchema
-}).get("/policies", () => access.getPolicies(), {
+}).post("/groups", async ({ body, set: set3 }) => {
+  const added = await access.addGroup(body);
+  set3.headers["Location"] = `/admin/access/chats/${added.peer_id}`;
+  set3.status = 201;
+  return { ok: true, ...added };
+}, { body: AddGroupBodySchema, response: AddGroupResponseSchema }).get("/policy", () => access.getPolicies(), {
   response: PoliciesResponseSchema,
-  detail: { summary: "Read current DM + group_chat policies." }
-}).put("/policies/:peer_type", async ({ params, body }) => {
-  const updated = await access.setPolicy(params.peer_type, body.policy);
+  detail: { summary: "Read current DM policy." }
+}).put("/policy", async ({ body }) => {
+  const updated = await access.setDmPolicy(body.policy);
   return { ok: true, ...updated };
-}, {
-  params: PeerTypeParamSchema,
-  body: SetPolicyBodySchema,
-  response: SetPolicyResponseSchema
-}).post("/pairings", async ({ body }) => {
+}, { body: SetPolicyBodySchema, response: SetPolicyResponseSchema }).post("/pairings", async ({ body }) => {
   const result = await access.consumePairing(body.code);
   return { ok: true, ...result };
 }, { body: ConsumePairingBodySchema, response: ConsumePairingOkSchema }).get("/pairings", () => ({ pending: access.listPending() }), {
@@ -71765,17 +71787,19 @@ class AccessGate {
   }
   check(msg) {
     const file3 = this.access.get();
-    const policy = msg.is_group_chat ? file3.policies.group_chat : file3.policies.dm;
+    if (file3.policies.dm === "disabled") {
+      return { kind: "drop", reason: "disabled" };
+    }
     const chat = file3.chats[String(msg.peer_id)];
     if (!chat) {
-      if (policy === "pairing")
-        return { kind: "need_pair" };
-      return msg.is_group_chat ? { kind: "drop", reason: "chat-not-allowed" } : { kind: "deny_with_reply", reason: "chat-not-allowed" };
+      if (msg.is_group_chat)
+        return { kind: "drop", reason: "chat-not-allowed" };
+      return file3.policies.dm === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "chat-not-allowed" };
     }
     if (chat.senders.length > 0 && !chat.senders.includes(msg.from_id)) {
-      if (policy === "pairing")
-        return { kind: "need_pair" };
-      return msg.is_group_chat ? { kind: "drop", reason: "sender-not-allowed" } : { kind: "deny_with_reply", reason: "sender-not-allowed" };
+      if (msg.is_group_chat)
+        return { kind: "drop", reason: "sender-not-allowed" };
+      return file3.policies.dm === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "sender-not-allowed" };
     }
     if (msg.is_group_chat) {
       const mentionPolicy = chat.mention_policy ?? "mention_only";
@@ -71852,9 +71876,6 @@ MentionDetector = __legacyDecorateClassTS([
     typeof CommunityResolver === "undefined" ? Object : CommunityResolver
   ])
 ], MentionDetector);
-function isPairCommand(msg, signals) {
-  return signals.name_mention && /\bpair\b/i.test(msg.text);
-}
 
 // src/modules/inbound/attachments.ts
 import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
@@ -71975,8 +71996,6 @@ class InboundService {
         return;
       }
       if (verdict.kind === "need_pair") {
-        if (msg.is_group_chat && !isPairCommand(msg, signals))
-          return;
         await this.pairing.emitCode(msg);
         return;
       }
@@ -72024,11 +72043,6 @@ InboundService = __legacyDecorateClassTS([
     typeof MessagingService === "undefined" ? Object : MessagingService
   ])
 ], InboundService);
-// src/common/utils/peer.ts
-var GROUP_CHAT_PEER_OFFSET = 2000000000;
-function isGroupChat(peerId) {
-  return peerId >= GROUP_CHAT_PEER_OFFSET;
-}
 // src/modules/inbound/message-adapter.ts
 function vkMessageToInbound(m3) {
   const msg = m3 ?? {};

@@ -1,6 +1,6 @@
 ---
 name: access
-description: Manage VK channel access — pair new chats, edit allowlists, set policy. Use when the user wants to pair, approve a sender, list allowed chats, or change policy for the VK channel.
+description: Manage VK channel access — pair DMs, opt group chats in, edit allowlists, set DM policy. Use when the user wants to pair a DM, add or remove a group chat, approve a sender, list allowed chats, or change DM policy for the VK channel.
 user-invocable: true
 allowed-tools:
   - Bash(curl http://127.0.0.1:6060/admin/access/*)
@@ -10,9 +10,12 @@ allowed-tools:
 # /vk:access — VK Channel Access Control
 
 Calls the local admin API at `http://127.0.0.1:6060/admin/access/*` to manage
-who is allowed to reach the VK channel. The plugin's gate drops everything
-that isn't on this allowlist (unless the policy is `pairing`, in which case
-unknown DMs get a 6-character code that this skill consumes).
+who can reach the VK channel.
+
+- **DMs** are gated by `dmPolicy` (`pairing` by default). Unknown DMs receive
+  a 6-character code; the operator runs `pair <code>` to approve.
+- **Group chats** are off by default. Opt each one in by `peer_id` with
+  `group add <peer_id>` — there is no group pairing flow.
 
 Arguments: `$ARGUMENTS` — the first token is the sub-action, the rest are
 sub-action arguments.
@@ -21,15 +24,41 @@ sub-action arguments.
 
 ## Sub-actions
 
-### `pair <code>`
+### `pair <code>` — DM only
 
-Consume a pairing code that the bot DM'd. On success the originating peer is
-added to `access.json → chats`.
+Consume a pairing code that the bot DM'd. On success the originating DM peer
+is added to `access.json → chats`.
 
 ```bash
 curl -s -X POST http://127.0.0.1:6060/admin/access/pairings \
   -H 'content-type: application/json' \
   -d '{"code":"<CODE>"}'
+```
+
+### `group add <peer_id> [--allow id1,id2] [--mention-policy mention_only|all|reply_only]`
+
+Opt a group chat in. VK group-chat peer ids are `>= 2_000_000_000`. Optional
+flags seed the initial sender allowlist and mention policy (defaults:
+`senders=[]` meaning anyone in the chat may write, `mention_policy=mention_only`).
+
+```bash
+# minimal: trust the whole chat, mention-only activation
+curl -s -X POST http://127.0.0.1:6060/admin/access/groups \
+  -H 'content-type: application/json' \
+  -d '{"peer_id":2000000042}'
+
+# lock down to two members and forward every message
+curl -s -X POST http://127.0.0.1:6060/admin/access/groups \
+  -H 'content-type: application/json' \
+  -d '{"peer_id":2000000042,"allow":[123456,234567],"mention_policy":"all"}'
+```
+
+### `group remove <peer_id>`
+
+Drop a group chat entirely. Same endpoint as `remove-chat`.
+
+```bash
+curl -s -X DELETE http://127.0.0.1:6060/admin/access/chats/<peer_id>
 ```
 
 ### `list` and `list <peer_id>`
@@ -42,12 +71,16 @@ curl -s http://127.0.0.1:6060/admin/access/chats
 curl -s http://127.0.0.1:6060/admin/access/chats/<peer_id>
 ```
 
-### `policy <peer_type> <policy>`
+### `policy <pairing|allowlist|disabled>` — DM policy
 
-`peer_type` is `dm` or `group_chat`; `policy` is `pairing` or `allowlist`.
+Group chats have no policy switch; toggle is DM-only.
+
+- `pairing` (default): unknown DMs get a 6-char code; known senders pass.
+- `allowlist`: only listed senders pass; others get one "ask the operator" reply per 24h.
+- `disabled`: global kill switch — every inbound message (DMs and group chats, allowlisted or not) is dropped silently.
 
 ```bash
-curl -s -X PUT http://127.0.0.1:6060/admin/access/policies/<peer_type> \
+curl -s -X PUT http://127.0.0.1:6060/admin/access/policy \
   -H 'content-type: application/json' \
   -d '{"policy":"<policy>"}'
 ```
@@ -55,7 +88,7 @@ curl -s -X PUT http://127.0.0.1:6060/admin/access/policies/<peer_type> \
 ### `add-sender <peer_id> <user_id|@screen_name>`
 
 Either a numeric VK user id or an `@screen_name` works; the plugin resolves
-screen names via `users.get`.
+screen names via `users.get`. Applies to both DMs and group chats.
 
 ```bash
 # numeric
