@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-plugins",
+  "description": "Claude Code plugins by Sukhrob Ilyosbekov — pre-bundled, no install step.",
+  "owner": {
+    "name": "Sukhrob Ilyosbekov",
+    "email": "suxrobgm@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "vk",
+      "source": "./plugins/vk",
+      "description": "VK.com channel for Claude Code — DM and group-chat bridge with message history, search, attachments, and remote permission relay.",
+      "homepage": "https://github.com/suxrobgm/claude-vk",
+      "category": "communication",
+      "author": {
+        "name": "Sukhrob Ilyosbekov",
+        "email": "suxrobgm@gmail.com"
+      }
+    }
+  ]
+}
