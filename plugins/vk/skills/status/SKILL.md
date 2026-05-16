@@ -21,9 +21,9 @@ into a single summary.
    readiness; returns `{"ok":true,"mcp":true}` when the MCP transport
    is connected.
 2. `curl -s http://127.0.0.1:6060/state` — runtime block with
-   `vk_connected`, `last_error`, `last_event_at`, plus `recent_messages_count`.
+   `vkConnected`, `lastError`, `lastEventAt`, plus `recentMessagesCount`.
 3. `curl -s http://127.0.0.1:6060/config` — effective config with
-   `vk_token` redacted to `"***"`.
+   `vkToken` redacted to `"***"`.
 4. `curl -s http://127.0.0.1:6060/access/policy` — current DM policy
    (`pairing` or `allowlist`). Group chats are always opt-in via
    `/vk:access group add` — no group policy exists.
@@ -56,7 +56,7 @@ If `/healthz` is unreachable, the plugin isn't running. Remind the user
 to launch with
 `claude --dangerously-load-development-channels plugin:vk@sukhrob-claude-plugins`.
 
-If `vk_connected` is `false` with `last_error: "VK_TOKEN missing"`, the
+If `vkConnected` is `false` with `lastError: "VK_TOKEN missing"`, the
 plugin booted without a token — run `/vk:configure <token>` then restart
 the Claude session (the long-poll loop only reads `VK_TOKEN` at startup).
 If the error starts with `vk_api_5` the token is rejected; with `vk_api_15`

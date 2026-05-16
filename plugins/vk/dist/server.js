@@ -70739,16 +70739,16 @@ function isNotFound(err) {
 var UserEntrySchema = t.Object({
   id: t.Integer(),
   name: t.String(),
-  screen_name: t.Optional(t.String()),
+  screenName: t.Optional(t.String()),
   photo: t.Optional(t.String()),
-  cached_at: t.String()
+  cachedAt: t.String()
 });
 var GroupEntrySchema = t.Object({
   id: t.Integer(),
   name: t.String(),
-  screen_name: t.Optional(t.String()),
+  screenName: t.Optional(t.String()),
   photo: t.Optional(t.String()),
-  cached_at: t.String()
+  cachedAt: t.String()
 });
 var PeersFileSchema = t.Object({
   version: t.Literal(1, { default: 1 }),
@@ -70786,8 +70786,8 @@ class UsersCache {
       defaults: PEERS_FILE_DEFAULTS
     });
     for (const [, entry] of Object.entries(this.store.get().users)) {
-      if (entry.screen_name) {
-        this.screenToId.set(entry.screen_name.toLowerCase(), entry.id);
+      if (entry.screenName) {
+        this.screenToId.set(entry.screenName.toLowerCase(), entry.id);
       }
     }
   }
@@ -70836,9 +70836,9 @@ class UsersCache {
       const entry = {
         id: u2.id,
         name: [u2.first_name, u2.last_name].filter(Boolean).join(" ").trim() || `user_${u2.id}`,
-        screen_name: u2.screen_name,
+        screenName: u2.screen_name,
         photo: u2.photo_100,
-        cached_at: new Date().toISOString()
+        cachedAt: new Date().toISOString()
       };
       await this.persist(entry);
       return entry;
@@ -70852,8 +70852,8 @@ class UsersCache {
       draft.users[String(entry.id)] = entry;
       evictIfNeeded(draft.users);
     });
-    if (entry.screen_name) {
-      this.screenToId.set(entry.screen_name.toLowerCase(), entry.id);
+    if (entry.screenName) {
+      this.screenToId.set(entry.screenName.toLowerCase(), entry.id);
     }
   }
   getStore() {
@@ -70870,7 +70870,7 @@ UsersCache = __legacyDecorateClassTS([
   ])
 ], UsersCache);
 function isStale(entry) {
-  return Date.now() - Date.parse(entry.cached_at) > TTL_MS;
+  return Date.now() - Date.parse(entry.cachedAt) > TTL_MS;
 }
 function evictIfNeeded(users) {
   const count = Object.keys(users).length;
@@ -70880,7 +70880,7 @@ function evictIfNeeded(users) {
   if (count <= LRU_LIMIT) {
     return;
   }
-  const sorted = Object.entries(users).sort(([, a13], [, b2]) => Date.parse(a13.cached_at) - Date.parse(b2.cached_at));
+  const sorted = Object.entries(users).sort(([, a13], [, b2]) => Date.parse(a13.cachedAt) - Date.parse(b2.cachedAt));
   const dropCount = count - LRU_LIMIT;
   for (let i2 = 0;i2 < dropCount; i2++) {
     const [key] = sorted[i2];
@@ -70969,20 +70969,16 @@ async function startMcpServer() {
   return server;
 }
 
-// src/types/common.schema.ts
-var NumericIdStringSchema = t.String({
-  pattern: "^-?\\d+$",
-  description: "Signed 64-bit integer encoded as a string."
-});
-var OkResponseSchema = t.Object({
-  ok: t.Literal(true)
-});
-var SimpleErrorBodySchema = t.Object({
-  error: t.String({ description: "Stable failure code (kebab-case)." })
-});
-var NullableString = t.Union([t.String(), t.Null()]);
+// src/common/utils/peer.ts
+var GROUP_CHAT_PEER_OFFSET = 2000000000;
+function isGroupChat(peerId) {
+  return peerId >= GROUP_CHAT_PEER_OFFSET;
+}
 
-// src/modules/access/access.schema.ts
+// src/modules/access/access.store.ts
+import { watch } from "fs";
+
+// src/modules/access/schemas/policy.schema.ts
 var DmPolicySchema = t.Union([
   t.Literal("pairing"),
   t.Literal("allowlist"),
@@ -70994,130 +70990,43 @@ var MentionPolicySchema = t.Union([
   t.Literal("all"),
   t.Literal("reply_only")
 ]);
-var ChatEntrySchema = t.Object({
-  kind: ChatKindSchema,
+var AddedBySchema = t.Union([t.Literal("pairing"), t.Literal("manual")]);
+
+// src/modules/access/schemas/access-file.schema.ts
+var DmEntrySchema = t.Object({
+  kind: t.Literal("dm"),
+  title: t.Optional(t.String()),
+  addedAt: t.String(),
+  addedBy: AddedBySchema
+});
+var GroupChatEntrySchema = t.Object({
+  kind: t.Literal("group_chat"),
   title: t.Optional(t.String()),
   senders: t.Array(t.Integer()),
-  mention_policy: t.Optional(MentionPolicySchema),
-  added_at: t.String(),
-  added_by: t.Union([t.Literal("pairing"), t.Literal("manual")])
+  mentionPolicy: t.Optional(MentionPolicySchema),
+  addedAt: t.String(),
+  addedBy: AddedBySchema
 });
+var ChatEntrySchema = t.Union([DmEntrySchema, GroupChatEntrySchema]);
 var PendingPairSchema = t.Object({
-  peer_id: t.Integer(),
-  from_id: t.Integer(),
-  expires_at: t.String()
+  peerId: t.Integer(),
+  fromId: t.Integer(),
+  expiresAt: t.String()
 });
 var AccessFileSchema = t.Object({
   version: t.Literal(1, { default: 1 }),
-  policy: DmPolicySchema,
+  dmPolicy: DmPolicySchema,
   chats: t.Record(t.String(), ChatEntrySchema),
-  pending_pairs: t.Record(t.String(), PendingPairSchema)
+  pendingPairs: t.Record(t.String(), PendingPairSchema)
 });
 var ACCESS_FILE_DEFAULTS = {
   version: 1,
-  policy: "pairing",
+  dmPolicy: "pairing",
   chats: {},
-  pending_pairs: {}
+  pendingPairs: {}
 };
-var PeerIdParamSchema = t.Object({
-  peer_id: NumericIdStringSchema
-});
-var PeerIdSenderParamSchema = t.Object({
-  peer_id: NumericIdStringSchema,
-  user_id: NumericIdStringSchema
-});
-var AddSenderBodySchema = t.Object({
-  user_id: t.Optional(t.Integer()),
-  screen_name: t.Optional(t.String({ minLength: 1 }))
-});
-var SetPolicyBodySchema = t.Object({
-  policy: DmPolicySchema
-});
-var SetMentionPolicyBodySchema = t.Object({
-  policy: MentionPolicySchema
-});
-var ConsumePairingBodySchema = t.Object({
-  code: t.String({ minLength: 6, maxLength: 6 })
-});
-var AddGroupBodySchema = t.Object({
-  peer_id: t.Integer(),
-  title: t.Optional(t.String({ minLength: 1 })),
-  allow: t.Optional(t.Array(t.Integer())),
-  mention_policy: t.Optional(MentionPolicySchema)
-});
-var ChatSummarySchema = t.Object({
-  peer_id: t.Integer(),
-  kind: ChatKindSchema,
-  title: t.Union([t.String(), t.Null()]),
-  sender_count: t.Integer(),
-  added_at: t.String(),
-  added_by: t.Union([t.Literal("pairing"), t.Literal("manual")])
-});
-var ChatsListResponseSchema = t.Object({
-  chats: t.Array(ChatSummarySchema)
-});
-var ChatDetailResponseSchema = t.Intersect([
-  t.Object({ peer_id: t.Integer() }),
-  ChatEntrySchema
-]);
-var SendersListResponseSchema = t.Object({
-  peer_id: t.Integer(),
-  senders: t.Array(t.Integer())
-});
-var AddSenderResponseSchema = t.Composite([
-  OkResponseSchema,
-  t.Object({ peer_id: t.Integer(), user_id: t.Integer() })
-]);
-var RemoveResponseSchema = OkResponseSchema;
-var RemoveChatResponseSchema = t.Composite([
-  OkResponseSchema,
-  t.Object({ peer_id: t.Integer() })
-]);
-var PoliciesResponseSchema = t.Object({
-  dm: DmPolicySchema
-});
-var SetPolicyResponseSchema = t.Composite([
-  OkResponseSchema,
-  t.Object({ dm: DmPolicySchema })
-]);
-var SetMentionPolicyResponseSchema = t.Composite([
-  OkResponseSchema,
-  t.Object({
-    peer_id: t.Integer(),
-    policy: MentionPolicySchema
-  })
-]);
-var ConsumePairingOkSchema = t.Composite([
-  OkResponseSchema,
-  t.Object({ peer_id: t.Integer(), chat: ChatEntrySchema })
-]);
-var AddGroupResponseSchema = t.Composite([
-  OkResponseSchema,
-  t.Object({ peer_id: t.Integer(), chat: ChatEntrySchema })
-]);
-var PendingPairingsResponseSchema = t.Object({
-  pending: t.Array(t.Object({ code: t.String(), pair: PendingPairSchema }))
-});
-var PendingGroupSchema = t.Object({
-  peer_id: t.Integer(),
-  first_seen: t.String(),
-  last_seen: t.String(),
-  hit_count: t.Integer(),
-  sample_from_id: t.Integer(),
-  sample_text: t.String()
-});
-var PendingGroupsResponseSchema = t.Object({
-  pending: t.Array(PendingGroupSchema)
-});
-
-// src/common/utils/peer.ts
-var GROUP_CHAT_PEER_OFFSET = 2000000000;
-function isGroupChat(peerId) {
-  return peerId >= GROUP_CHAT_PEER_OFFSET;
-}
 
 // src/modules/access/access.store.ts
-import { watch } from "fs";
 var RELOAD_DEBOUNCE_MS = 100;
 
 class AccessStore {
@@ -71199,11 +71108,11 @@ class PairingService {
     const now = new Date;
     const expiresAt = new Date(now.getTime() + TTL_MS2);
     await this.access.update((draft) => {
-      sweepExpired(draft.pending_pairs, now);
-      draft.pending_pairs[code] = {
-        peer_id: msg.peer_id,
-        from_id: msg.from_id,
-        expires_at: expiresAt.toISOString()
+      sweepExpired(draft.pendingPairs, now);
+      draft.pendingPairs[code] = {
+        peerId: msg.peer_id,
+        fromId: msg.from_id,
+        expiresAt: expiresAt.toISOString()
       };
     });
     const text = pairingMessage(code);
@@ -71218,39 +71127,38 @@ class PairingService {
     let outcome = { ok: false, reason: "unknown" };
     await this.access.update((draft) => {
       const now = new Date;
-      sweepExpired(draft.pending_pairs, now);
-      const pending = draft.pending_pairs[code];
+      sweepExpired(draft.pendingPairs, now);
+      const pending = draft.pendingPairs[code];
       if (!pending) {
         outcome = { ok: false, reason: "unknown" };
         return;
       }
       const entry = {
         kind: "dm",
-        senders: [pending.from_id],
-        added_at: now.toISOString(),
-        added_by: "pairing"
+        addedAt: now.toISOString(),
+        addedBy: "pairing"
       };
-      draft.chats[String(pending.peer_id)] = entry;
-      delete draft.pending_pairs[code];
-      outcome = { ok: true, peer_id: pending.peer_id, chat: entry };
+      draft.chats[String(pending.peerId)] = entry;
+      delete draft.pendingPairs[code];
+      outcome = { ok: true, peerId: pending.peerId, chat: entry };
     });
     return outcome;
   }
   listPending() {
     const file3 = this.access.get();
-    return Object.entries(file3.pending_pairs).map(([code, pair]) => ({ code, pair }));
+    return Object.entries(file3.pendingPairs).map(([code, pair]) => ({ code, pair }));
   }
   async pruneExpired() {
     const now = new Date;
-    const before = Object.keys(this.access.get().pending_pairs).length;
+    const before = Object.keys(this.access.get().pendingPairs).length;
     if (before === 0) {
       return;
     }
     let removed = 0;
     await this.access.update((draft) => {
-      const sizeBefore = Object.keys(draft.pending_pairs).length;
-      sweepExpired(draft.pending_pairs, now);
-      removed = sizeBefore - Object.keys(draft.pending_pairs).length;
+      const sizeBefore = Object.keys(draft.pendingPairs).length;
+      sweepExpired(draft.pendingPairs, now);
+      removed = sizeBefore - Object.keys(draft.pendingPairs).length;
     });
     if (removed > 0)
       logger.info({ removed }, "pruned expired pairing codes on startup");
@@ -71272,7 +71180,7 @@ function generateCode() {
 }
 function sweepExpired(pairs, now) {
   for (const [code, pair] of Object.entries(pairs)) {
-    if (Date.parse(pair.expires_at) <= now.getTime()) {
+    if (Date.parse(pair.expiresAt) <= now.getTime()) {
       delete pairs[code];
     }
   }
@@ -71285,32 +71193,32 @@ class PendingGroupsRegistry {
   entries = new Map;
   record(input) {
     const now = new Date().toISOString();
-    const existing = this.entries.get(input.peer_id);
+    const existing = this.entries.get(input.peerId);
     if (existing) {
-      existing.last_seen = now;
-      existing.hit_count += 1;
+      existing.lastSeen = now;
+      existing.hitCount += 1;
       return;
     }
     if (this.entries.size >= MAX_ENTRIES) {
-      const oldest = [...this.entries.entries()].sort((a13, b2) => a13[1].last_seen.localeCompare(b2[1].last_seen))[0];
+      const oldest = [...this.entries.entries()].sort((a13, b2) => a13[1].lastSeen.localeCompare(b2[1].lastSeen))[0];
       if (oldest) {
         this.entries.delete(oldest[0]);
       }
     }
-    this.entries.set(input.peer_id, {
-      peer_id: input.peer_id,
-      first_seen: now,
-      last_seen: now,
-      hit_count: 1,
-      sample_from_id: input.from_id,
-      sample_text: input.text.slice(0, 80)
+    this.entries.set(input.peerId, {
+      peerId: input.peerId,
+      firstSeen: now,
+      lastSeen: now,
+      hitCount: 1,
+      sampleFromId: input.fromId,
+      sampleText: input.text.slice(0, 80)
     });
   }
   forget(peerId) {
     this.entries.delete(peerId);
   }
   list() {
-    return [...this.entries.values()].sort((a13, b2) => b2.last_seen.localeCompare(a13.last_seen));
+    return [...this.entries.values()].sort((a13, b2) => b2.lastSeen.localeCompare(a13.lastSeen));
   }
 }
 PendingGroupsRegistry = __legacyDecorateClassTS([
@@ -71331,35 +71239,35 @@ class AccessService {
   }
   listChats() {
     const file3 = this.store.get();
-    return Object.entries(file3.chats).map(([peer_id, chat]) => ({
-      peer_id: Number(peer_id),
+    return Object.entries(file3.chats).map(([peerId, chat]) => ({
+      peerId: Number(peerId),
       kind: chat.kind,
       title: chat.title ?? null,
-      sender_count: chat.senders.length,
-      added_at: chat.added_at,
-      added_by: chat.added_by
+      senderCount: chat.kind === "group_chat" ? chat.senders.length : 1,
+      addedAt: chat.addedAt,
+      addedBy: chat.addedBy
     }));
   }
   getChat(peerId) {
     const chat = this.requireChat(peerId);
-    return { peer_id: Number(peerId), ...chat };
+    return { peerId: Number(peerId), ...chat };
   }
   async removeChat(peerId) {
     this.requireChat(peerId);
     await this.store.update((draft) => {
       delete draft.chats[peerId];
     });
-    return { peer_id: Number(peerId) };
+    return { peerId: Number(peerId) };
   }
   listSenders(peerId) {
-    const chat = this.requireChat(peerId);
-    return { peer_id: Number(peerId), senders: chat.senders.slice() };
+    const chat = this.requireGroupChat(peerId);
+    return { peerId: Number(peerId), senders: chat.senders.slice() };
   }
   async addSender(peerId, input) {
-    this.requireChat(peerId);
-    let userId = input.user_id ?? null;
-    if (!userId && input.screen_name) {
-      userId = await this.users.resolveScreenName(input.screen_name);
+    this.requireGroupChat(peerId);
+    let userId = input.userId ?? null;
+    if (!userId && input.screenName) {
+      userId = await this.users.resolveScreenName(input.screenName);
     }
     if (!userId) {
       throw new BadRequestError("user-not-found");
@@ -71367,76 +71275,91 @@ class AccessService {
     const id = userId;
     await this.store.update((draft) => {
       const chat = draft.chats[peerId];
+      if (chat?.kind !== "group_chat") {
+        return;
+      }
       if (!chat.senders.includes(id)) {
         chat.senders.push(id);
       }
     });
-    return { peer_id: Number(peerId), user_id: id };
+    return { peerId: Number(peerId), userId: id };
   }
   async removeSender(peerId, userIdStr) {
     const userId = Number(userIdStr);
-    const chat = this.requireChat(peerId);
+    const chat = this.requireGroupChat(peerId);
     if (!chat.senders.includes(userId)) {
       throw new NotFoundError2("sender-not-listed");
     }
     await this.store.update((draft) => {
       const c2 = draft.chats[peerId];
+      if (c2?.kind !== "group_chat") {
+        return;
+      }
       c2.senders = c2.senders.filter((s2) => s2 !== userId);
     });
   }
   async addGroup(input) {
-    if (!isGroupChat(input.peer_id)) {
+    if (!isGroupChat(input.peerId)) {
       throw new BadRequestError("not-a-group-chat-peer-id");
     }
-    const key = String(input.peer_id);
+    const key = String(input.peerId);
     const now = new Date().toISOString();
     const entry = {
       kind: "group_chat",
       senders: input.allow ? Array.from(new Set(input.allow)) : [],
-      mention_policy: input.mention_policy ?? "mention_only",
-      added_at: now,
-      added_by: "manual",
+      mentionPolicy: input.mentionPolicy ?? "mention_only",
+      addedAt: now,
+      addedBy: "manual",
       ...input.title ? { title: input.title } : {}
     };
     await this.store.update((draft) => {
       draft.chats[key] = entry;
     });
-    this.pendingGroups.forget(input.peer_id);
-    return { peer_id: input.peer_id, chat: entry };
+    this.pendingGroups.forget(input.peerId);
+    return { peerId: input.peerId, chat: entry };
   }
   listPendingGroups() {
     return this.pendingGroups.list();
   }
   requireChat(peerId) {
     const chat = this.store.get().chats[peerId];
-    if (!chat)
+    if (!chat) {
       throw new NotFoundError2("chat-not-allowed");
+    }
+    return chat;
+  }
+  requireGroupChat(peerId) {
+    const chat = this.requireChat(peerId);
+    if (chat.kind !== "group_chat") {
+      throw new BadRequestError("senders-group-only");
+    }
     return chat;
   }
   getPolicies() {
-    return { dm: this.store.get().policy };
+    return { dm: this.store.get().dmPolicy };
   }
   async setDmPolicy(policy) {
     await this.store.update((draft) => {
-      draft.policy = policy;
+      draft.dmPolicy = policy;
     });
     return { dm: policy };
   }
   async setMentionPolicy(peerId, policy) {
-    const chat = this.requireChat(peerId);
-    if (chat.kind !== "group_chat") {
-      throw new BadRequestError("mention-policy-group-only");
-    }
+    this.requireGroupChat(peerId);
     await this.store.update((draft) => {
-      draft.chats[peerId].mention_policy = policy;
+      const chat = draft.chats[peerId];
+      if (chat?.kind !== "group_chat") {
+        return;
+      }
+      chat.mentionPolicy = policy;
     });
-    return { peer_id: Number(peerId), policy };
+    return { peerId: Number(peerId), policy };
   }
   async consumePairing(code) {
     const result = await this.pairing.consume(code);
     if (!result.ok)
       throw new BadRequestError(result.reason);
-    return { peer_id: result.peer_id, chat: result.chat };
+    return { peerId: result.peerId, chat: result.chat };
   }
   listPending() {
     return this.pairing.listPending();
@@ -71452,6 +71375,111 @@ AccessService = __legacyDecorateClassTS([
   ])
 ], AccessService);
 
+// src/types/common.schema.ts
+var NumericIdStringSchema = t.String({
+  pattern: "^-?\\d+$",
+  description: "Signed 64-bit integer encoded as a string."
+});
+var OkResponseSchema = t.Object({
+  ok: t.Literal(true)
+});
+var SimpleErrorBodySchema = t.Object({
+  error: t.String({ description: "Stable failure code (kebab-case)." })
+});
+var NullableString = t.Union([t.String(), t.Null()]);
+
+// src/modules/access/schemas/http.schema.ts
+var PeerIdParamSchema = t.Object({
+  peerId: NumericIdStringSchema
+});
+var PeerIdSenderParamSchema = t.Object({
+  peerId: NumericIdStringSchema,
+  userId: NumericIdStringSchema
+});
+var AddSenderBodySchema = t.Object({
+  userId: t.Optional(t.Integer()),
+  screenName: t.Optional(t.String({ minLength: 1 }))
+});
+var SetPolicyBodySchema = t.Object({
+  policy: DmPolicySchema
+});
+var SetMentionPolicyBodySchema = t.Object({
+  policy: MentionPolicySchema
+});
+var ConsumePairingBodySchema = t.Object({
+  code: t.String({ minLength: 6, maxLength: 6 })
+});
+var AddGroupBodySchema = t.Object({
+  peerId: t.Integer(),
+  title: t.Optional(t.String({ minLength: 1 })),
+  allow: t.Optional(t.Array(t.Integer())),
+  mentionPolicy: t.Optional(MentionPolicySchema)
+});
+var ChatSummarySchema = t.Object({
+  peerId: t.Integer(),
+  kind: ChatKindSchema,
+  title: t.Union([t.String(), t.Null()]),
+  senderCount: t.Integer(),
+  addedAt: t.String(),
+  addedBy: t.Union([t.Literal("pairing"), t.Literal("manual")])
+});
+var ChatsListResponseSchema = t.Object({
+  chats: t.Array(ChatSummarySchema)
+});
+var ChatDetailResponseSchema = t.Intersect([
+  t.Object({ peerId: t.Integer() }),
+  ChatEntrySchema
+]);
+var SendersListResponseSchema = t.Object({
+  peerId: t.Integer(),
+  senders: t.Array(t.Integer())
+});
+var AddSenderResponseSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({ peerId: t.Integer(), userId: t.Integer() })
+]);
+var RemoveResponseSchema = OkResponseSchema;
+var RemoveChatResponseSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({ peerId: t.Integer() })
+]);
+var PoliciesResponseSchema = t.Object({
+  dm: DmPolicySchema
+});
+var SetPolicyResponseSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({ dm: DmPolicySchema })
+]);
+var SetMentionPolicyResponseSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({
+    peerId: t.Integer(),
+    policy: MentionPolicySchema
+  })
+]);
+var ConsumePairingOkSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({ peerId: t.Integer(), chat: ChatEntrySchema })
+]);
+var AddGroupResponseSchema = t.Composite([
+  OkResponseSchema,
+  t.Object({ peerId: t.Integer(), chat: ChatEntrySchema })
+]);
+var PendingPairingsResponseSchema = t.Object({
+  pending: t.Array(t.Object({ code: t.String(), pair: PendingPairSchema }))
+});
+var PendingGroupSchema = t.Object({
+  peerId: t.Integer(),
+  firstSeen: t.String(),
+  lastSeen: t.String(),
+  hitCount: t.Integer(),
+  sampleFromId: t.Integer(),
+  sampleText: t.String()
+});
+var PendingGroupsResponseSchema = t.Object({
+  pending: t.Array(PendingGroupSchema)
+});
+
 // src/modules/access/access.controller.ts
 var access = instance.resolve(AccessService);
 var accessController = new Elysia({
@@ -71461,25 +71489,25 @@ var accessController = new Elysia({
 }).get("/chats", () => ({ chats: access.listChats() }), {
   response: ChatsListResponseSchema,
   detail: { summary: "List allowed chats." }
-}).get("/chats/:peer_id", ({ params }) => access.getChat(params.peer_id), {
+}).get("/chats/:peerId", ({ params }) => access.getChat(params.peerId), {
   params: PeerIdParamSchema,
   response: ChatDetailResponseSchema
-}).delete("/chats/:peer_id", async ({ params }) => {
-  const removed = await access.removeChat(params.peer_id);
+}).delete("/chats/:peerId", async ({ params }) => {
+  const removed = await access.removeChat(params.peerId);
   return { ok: true, ...removed };
-}, { params: PeerIdParamSchema, response: RemoveChatResponseSchema }).get("/chats/:peer_id/senders", ({ params }) => access.listSenders(params.peer_id), {
+}, { params: PeerIdParamSchema, response: RemoveChatResponseSchema }).get("/chats/:peerId/senders", ({ params }) => access.listSenders(params.peerId), {
   params: PeerIdParamSchema,
   response: SendersListResponseSchema
-}).post("/chats/:peer_id/senders", async ({ params, body, set: set3 }) => {
-  const added = await access.addSender(params.peer_id, body);
-  set3.headers["Location"] = `/access/chats/${params.peer_id}/senders/${added.user_id}`;
+}).post("/chats/:peerId/senders", async ({ params, body, set: set3 }) => {
+  const added = await access.addSender(params.peerId, body);
+  set3.headers["Location"] = `/access/chats/${params.peerId}/senders/${added.userId}`;
   set3.status = 201;
   return { ok: true, ...added };
-}, { params: PeerIdParamSchema, body: AddSenderBodySchema, response: AddSenderResponseSchema }).delete("/chats/:peer_id/senders/:user_id", async ({ params }) => {
-  await access.removeSender(params.peer_id, params.user_id);
+}, { params: PeerIdParamSchema, body: AddSenderBodySchema, response: AddSenderResponseSchema }).delete("/chats/:peerId/senders/:userId", async ({ params }) => {
+  await access.removeSender(params.peerId, params.userId);
   return { ok: true };
-}, { params: PeerIdSenderParamSchema, response: RemoveResponseSchema }).put("/chats/:peer_id/mention-policy", async ({ params, body }) => {
-  const updated = await access.setMentionPolicy(params.peer_id, body.policy);
+}, { params: PeerIdSenderParamSchema, response: RemoveResponseSchema }).put("/chats/:peerId/mention-policy", async ({ params, body }) => {
+  const updated = await access.setMentionPolicy(params.peerId, body.policy);
   return { ok: true, ...updated };
 }, {
   params: PeerIdParamSchema,
@@ -71487,7 +71515,7 @@ var accessController = new Elysia({
   response: SetMentionPolicyResponseSchema
 }).post("/groups", async ({ body, set: set3 }) => {
   const added = await access.addGroup(body);
-  set3.headers["Location"] = `/access/chats/${added.peer_id}`;
+  set3.headers["Location"] = `/access/chats/${added.peerId}`;
   set3.status = 201;
   return { ok: true, ...added };
 }, { body: AddGroupBodySchema, response: AddGroupResponseSchema }).get("/policy", () => access.getPolicies(), {
@@ -71504,7 +71532,7 @@ var accessController = new Elysia({
 }).get("/groups/pending", () => ({ pending: access.listPendingGroups() }), {
   response: PendingGroupsResponseSchema,
   detail: {
-    summary: "Group-chat peer_ids the gate dropped recently \u2014 copy into /vk:access group add."
+    summary: "Group-chat peerIds the gate dropped recently \u2014 copy into /vk:access group add."
   }
 });
 
@@ -71543,8 +71571,8 @@ class CommunityResolver {
     this.inflight = (async () => {
       try {
         const self2 = await this.vk.groupsGetSelf();
-        this.identity = { id: String(self2.id), screen_name: self2.screen_name };
-        logger.info({ id: this.identity.id, screen_name: this.identity.screen_name }, "community identity resolved from groups.getById");
+        this.identity = { id: String(self2.id), screenName: self2.screen_name };
+        logger.info({ id: this.identity.id, screen_name: this.identity.screenName }, "community identity resolved from groups.getById");
       } catch (err) {
         logger.warn({ err }, "groups.getById failed; mention detection disabled");
       } finally {
@@ -71766,22 +71794,21 @@ class AccessGate {
   }
   check(msg) {
     const file3 = this.access.get();
-    if (file3.policy === "disabled") {
+    if (file3.dmPolicy === "disabled") {
       return { kind: "drop", reason: "disabled" };
     }
     const chat = file3.chats[String(msg.peer_id)];
     if (!chat) {
-      if (msg.is_group_chat)
+      if (msg.is_group_chat) {
         return { kind: "drop", reason: "chat-not-allowed" };
-      return file3.policy === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "chat-not-allowed" };
+      }
+      return file3.dmPolicy === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "chat-not-allowed" };
     }
-    if (chat.senders.length > 0 && !chat.senders.includes(msg.from_id)) {
-      if (msg.is_group_chat)
+    if (chat.kind === "group_chat") {
+      if (chat.senders.length > 0 && !chat.senders.includes(msg.from_id)) {
         return { kind: "drop", reason: "sender-not-allowed" };
-      return file3.policy === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "sender-not-allowed" };
-    }
-    if (msg.is_group_chat) {
-      const mentionPolicy = chat.mention_policy ?? "mention_only";
+      }
+      const mentionPolicy = chat.mentionPolicy ?? "mention_only";
       if (mentionPolicy === "mention_only" && !msg.mentioned_bot) {
         return { kind: "drop", reason: "no-mention" };
       }
@@ -71813,7 +71840,7 @@ class MentionDetector {
   detect(msg) {
     const identity = this.community.get();
     const communityId = identity?.id;
-    const screenName = identity?.screen_name?.toLowerCase();
+    const screenName = identity?.screenName?.toLowerCase();
     const signals = {
       name_mention: this.hasNameMention(msg.text, communityId, screenName),
       reply_to_bot: this.isReplyToBot(msg.peer_id, msg.reply_to),
@@ -71989,8 +72016,8 @@ class InboundService {
       if (verdict.kind === "drop") {
         if (msg.is_group_chat && verdict.reason === "chat-not-allowed") {
           this.pendingGroups.record({
-            peer_id: msg.peer_id,
-            from_id: msg.from_id,
+            peerId: msg.peer_id,
+            fromId: msg.from_id,
             text: msg.text
           });
         }
@@ -72060,10 +72087,10 @@ InboundService = __legacyDecorateClassTS([
 // src/common/status.ts
 class StatusRegistry {
   status = {
-    vk_connected: false,
-    last_error: null,
-    last_error_at: null,
-    last_event_at: null
+    vkConnected: false,
+    lastError: null,
+    lastErrorAt: null,
+    lastEventAt: null
   };
   get() {
     return this.status;
@@ -72071,21 +72098,21 @@ class StatusRegistry {
   markConnected() {
     this.status = {
       ...this.status,
-      vk_connected: true,
-      last_error: null,
-      last_error_at: null
+      vkConnected: true,
+      lastError: null,
+      lastErrorAt: null
     };
   }
   markDisconnected(error52) {
     this.status = {
       ...this.status,
-      vk_connected: false,
-      last_error: error52,
-      last_error_at: new Date().toISOString()
+      vkConnected: false,
+      lastError: error52,
+      lastErrorAt: new Date().toISOString()
     };
   }
   markEvent() {
-    this.status = { ...this.status, last_event_at: new Date().toISOString() };
+    this.status = { ...this.status, lastEventAt: new Date().toISOString() };
   }
 }
 StatusRegistry = __legacyDecorateClassTS([
@@ -72223,8 +72250,9 @@ class LongPollService {
   }
   async warn(message) {
     const notifier = this.notifier;
-    if (!notifier)
+    if (!notifier) {
       return;
+    }
     try {
       await notifier.warn(message);
     } catch (err) {
@@ -72240,8 +72268,9 @@ LongPollService = __legacyDecorateClassTS([
   ])
 ], LongPollService);
 function vkErrorCode(err) {
-  if (typeof err !== "object" || err === null)
+  if (typeof err !== "object" || err === null) {
     return null;
+  }
   const c2 = err.code;
   return typeof c2 === "number" ? c2 : null;
 }
@@ -72308,19 +72337,19 @@ function startInbound(mcp) {
 // src/modules/runtime/runtime.schema.ts
 var ConfigResponseSchema = t.Object({
   port: t.Number(),
-  vk_community_id: NullableString,
-  vk_community_screen_name: NullableString,
-  vk_token: NullableString
+  vkCommunityId: NullableString,
+  vkCommunityScreenName: NullableString,
+  vkToken: NullableString
 });
 var StateResponseSchema = t.Object({
   runtime: t.Object({
-    mcp_ready: t.Boolean(),
-    vk_connected: t.Boolean(),
-    last_error: NullableString,
-    last_error_at: NullableString,
-    last_event_at: NullableString
+    mcpReady: t.Boolean(),
+    vkConnected: t.Boolean(),
+    lastError: NullableString,
+    lastErrorAt: NullableString,
+    lastEventAt: NullableString
   }),
-  recent_messages_count: t.Integer()
+  recentMessagesCount: t.Integer()
 });
 
 // src/modules/runtime/runtime.service.ts
@@ -72337,15 +72366,15 @@ class RuntimeService {
     const identity = this.community.get();
     return {
       port: Number(process.env.PORT),
-      vk_community_id: identity?.id ?? null,
-      vk_community_screen_name: identity?.screen_name ?? null,
-      vk_token: process.env.VK_TOKEN ? "***" : null
+      vkCommunityId: identity?.id ?? null,
+      vkCommunityScreenName: identity?.screenName ?? null,
+      vkToken: process.env.VK_TOKEN ? "***" : null
     };
   }
   getState() {
     return {
-      runtime: { mcp_ready: isMcpReady(), ...this.status.get() },
-      recent_messages_count: this.recent.size()
+      runtime: { mcpReady: isMcpReady(), ...this.status.get() },
+      recentMessagesCount: this.recent.size()
     };
   }
 }

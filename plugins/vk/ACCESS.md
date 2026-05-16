@@ -1,22 +1,17 @@
 # Access control
 
-`claude-vk` gates every inbound message through a **two-layer allowlist**: the
-chat itself must be allowed, and within each allowed chat there is a per-chat
-list of trusted sender user IDs. The check runs on `from_id`, not `peer_id` —
-so a user trusted in a DM is not automatically trusted in a group chat.
+`claude-vk` gates every inbound message on `from_id`. The chat must be
+allowed; group chats additionally carry a per-chat sender allowlist and a
+mention-activation policy. DMs have one implicit sender, so no `senders[]`.
 
-Group chats get a third layer (mention activation) that decides which kinds
-of messages from an allowed sender actually wake Claude up.
+The two flows are deliberately different:
 
-The two access flows are deliberately different:
-
-- **DMs** are gated by a `dmPolicy` and can pair themselves automatically.
-- **Group chats** are off by default and have to be opted in by `peer_id`.
-  There is no group pairing flow.
+- **DMs** are gated by `dmPolicy` and can pair themselves automatically.
+- **Group chats** are off by default — opt in by `peer_id`. No group pairing.
 
 ## Policies
 
-Set via `policy`. Default is `pairing`. `pairing` and `allowlist` only affect DMs (group chats are always opt-in by `peer_id`); `disabled` is a global kill switch that silences both.
+Set via `dmPolicy`. Default is `pairing`. `pairing` and `allowlist` only affect DMs (group chats are always opt-in by `peerId`); `disabled` is a global kill switch that silences both.
 
 | Policy      | Behavior                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------- |
@@ -55,12 +50,12 @@ recent dropped groups show up there ready to copy into `/vk:access group add`.
 /vk:access group remove 2000000042
 ```
 
-- **`mention_policy: "mention_only"` (default):** bot responds only to
+- **`mentionPolicy: "mention_only"` (default):** bot responds only to
   `@<community>` mentions or replies to one of its own messages.
-- **`mention_policy: "all"`:** every message from an allowed sender is
+- **`mentionPolicy: "all"`:** every message from an allowed sender is
   forwarded. Requires VK community privacy mode "Read all messages" to be
   on for the long-poll to actually deliver everything.
-- **`mention_policy: "reply_only"`:** wakes only on direct replies to the bot.
+- **`mentionPolicy: "reply_only"`:** wakes only on direct replies to the bot.
 - **`--allow id1,id2`:** seed the per-chat sender allowlist. Empty means
   "anyone in this chat may write to the bot".
 
@@ -77,7 +72,7 @@ You can also change either field after the fact:
 VK community admin → "Bots → Conversation messages" exposes a privacy switch.
 With it off, VK only delivers messages where the bot is mentioned or replied
 to — useful belt-and-braces alongside `mention_only`. To use
-`mention_policy=all` you need privacy mode disabled in the community admin,
+`mentionPolicy=all` you need privacy mode disabled in the community admin,
 otherwise nothing reaches the long-poll regardless of the local config.
 
 ## Key differences: groups vs. DMs
@@ -99,53 +94,51 @@ previous version live.
 ```json
 {
   "version": 1,
-  "policy": "pairing",
+  "dmPolicy": "pairing",
   "chats": {
     "123456": {
       "kind": "dm",
       "title": "Ivan Petrov",
-      "senders": [123456],
-      "added_at": "2026-05-14T10:21:00Z",
-      "added_by": "pairing"
+      "addedAt": "2026-05-14T10:21:00Z",
+      "addedBy": "pairing"
     },
     "2000000042": {
       "kind": "group_chat",
       "title": "Team Standup",
       "senders": [123456, 234567, 345678],
-      "mention_policy": "mention_only",
-      "added_at": "2026-05-14T11:02:00Z",
-      "added_by": "manual"
+      "mentionPolicy": "mention_only",
+      "addedAt": "2026-05-14T11:02:00Z",
+      "addedBy": "manual"
     }
   },
-  "pending_pairs": {
+  "pendingPairs": {
     "X7K4MQ": {
-      "peer_id": 999111,
-      "from_id": 999111,
-      "expires_at": "2026-05-14T11:30:00Z"
+      "peerId": 999111,
+      "fromId": 999111,
+      "expiresAt": "2026-05-14T11:30:00Z"
     }
   }
 }
 ```
 
-- Keys under `chats` are stringified `peer_id`s. DM peers are user IDs
+- Keys under `chats` are stringified `peerId`s. DM peers are user IDs
   (`< 2_000_000_000`); group-chat peers are `>= 2_000_000_000`.
-- `senders` is an array of VK user IDs. **An empty `senders` array means
-  "no per-sender restriction" — anyone in this chat may message Claude.**
-  Group `add` leaves it empty unless `--allow` is supplied. DM pairing seeds
-  it with the DM peer's user id (a DM has only ever one possible sender
-  anyway).
-- `mention_policy` (group chats only): `mention_only` (default), `all`, or
+- `senders` (group chats only) is an array of VK user IDs. **An empty
+  `senders` array means "no per-sender restriction" — anyone in this chat may
+  message Claude.** Group `add` leaves it empty unless `--allow` is supplied.
+  DM entries omit the field entirely — a DM only ever has one sender.
+- `mentionPolicy` (group chats only): `mention_only` (default), `all`, or
   `reply_only`. The mention layer still applies even when `senders` is empty.
-- `pending_pairs` is the live DM pairing table. Codes are 6 chars from a
+- `pendingPairs` is the live DM pairing table. Codes are 6 chars from a
   32-char alphabet (no `0/O/1/I/L`), TTL 10 minutes, single-use.
 
 ## Pairing flow (DM only)
 
 1. A user DMs the community on VK.
-2. If `dmPolicy=pairing` and the sender is unknown, the bot replies with a
-   6-character code and stores it in `pending_pairs`.
+2. If `policy=pairing` and the sender is unknown, the bot replies with a
+   6-character code and stores it in `pendingPairs`.
 3. The operator runs `/vk:access pair <code>` in their Claude session.
-4. The DM peer is added to `chats` with the sender's `user_id` in `senders`.
+4. The DM peer is added to `chats` as `{ kind: "dm" }`.
 
 Group chats never receive a pairing code automatically — adding the bot to
 a chat is not enough on its own. Use `/vk:access group add <peer_id>`.
@@ -182,8 +175,8 @@ The slash skill calls the local management API at
 | `group remove <peer_id>`                                 | Drop a group chat (alias of `remove-chat <peer_id>`). |
 | `list` / `list <peer_id>`                                | List allowed chats; per-chat sender detail.           |
 | `policy <pairing\|allowlist>`                            | Set DM policy.                                        |
-| `add-sender <peer_id> <user>`                            | Add user (numeric id or `@screen_name`) to a chat.    |
-| `remove-sender <peer_id> <user_id>`                      | Drop a sender from a chat.                            |
+| `add-sender <peer_id> <user>`                            | Add user (id or `@screen_name`) to a group chat.      |
+| `remove-sender <peer_id> <user_id>`                      | Drop a sender from a group chat.                      |
 | `remove-chat <peer_id>`                                  | Drop a chat entirely.                                 |
 | `mention-policy <peer_id> <policy>`                      | Group chats only.                                     |
 | `pending`                                                | List outstanding pairing codes.                       |
@@ -200,7 +193,7 @@ previous version stays live.
 - **Privacy mode.** Leave "Read all messages" **off** in the community admin
   unless you really need it. With it off, VK only delivers messages where
   the bot is mentioned or replied-to — a useful belt-and-braces alongside
-  `mention_policy`.
+  `mentionPolicy`.
 - **Removed bot.** When the bot is kicked, VK emits a `chat_kick_user`
   event. The chat is marked inactive (kept for audit) and forwarding stops.
 - **Sender management.** `add-sender` accepts numeric IDs and `@screen_name`.

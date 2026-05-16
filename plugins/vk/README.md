@@ -30,4 +30,4 @@ Full setup walkthrough, including how to create the community and mint a token, 
 
 ## Source
 
-This directory is a pre-built distribution. Source code, issue tracker, and PRD live at [github.com/suxrobgm/claude-vk](https://github.com/suxrobgm/claude-vk).
+This directory is a pre-built distribution. Source code and issue tracker live at [github.com/suxrobgm/claude-vk](https://github.com/suxrobgm/claude-vk).
