@@ -32962,7 +32962,7 @@ function bootstrapContainer() {
 }
 // src/common/logger/logger.ts
 var import_pino = __toESM(require_pino(), 1);
-import { mkdirSync } from "fs";
+import { mkdirSync, renameSync, statSync, unlinkSync } from "fs";
 import { join as join2 } from "path";
 
 // src/state/paths.ts
@@ -32978,9 +32978,28 @@ var logDir = join(root, "log");
 // src/common/logger/logger.ts
 var level = process.env.LOG_LEVEL ?? "info";
 var isDev = false;
+var MAX_LOG_BYTES = 10 * 1024 * 1024;
+function rotateIfOversized(file2) {
+  try {
+    if (statSync(file2).size < MAX_LOG_BYTES) {
+      return;
+    }
+  } catch {
+    return;
+  }
+  const rotated = `${file2}.1`;
+  try {
+    unlinkSync(rotated);
+  } catch {}
+  try {
+    renameSync(file2, rotated);
+  } catch {}
+}
 function buildProdLogger() {
   mkdirSync(logDir, { recursive: true });
-  const fileStream = import_pino.destination({ dest: join2(logDir, "vk.log"), sync: false, mkdir: true });
+  const logFile = join2(logDir, "vk.log");
+  rotateIfOversized(logFile);
+  const fileStream = import_pino.destination({ dest: logFile, sync: false, mkdir: true });
   return import_pino.pino({ level, base: { plugin: "vk" } }, import_pino.multistream([{ stream: import_pino.destination(2) }, { stream: fileStream }]));
 }
 var logger = isDev ? import_pino.pino({
@@ -71079,6 +71098,17 @@ var AddGroupResponseSchema = t.Composite([
 var PendingPairingsResponseSchema = t.Object({
   pending: t.Array(t.Object({ code: t.String(), pair: PendingPairSchema }))
 });
+var PendingGroupSchema = t.Object({
+  peer_id: t.Integer(),
+  first_seen: t.String(),
+  last_seen: t.String(),
+  hit_count: t.Integer(),
+  sample_from_id: t.Integer(),
+  sample_text: t.String()
+});
+var PendingGroupsResponseSchema = t.Object({
+  pending: t.Array(PendingGroupSchema)
+});
 
 // src/common/utils/peer.ts
 var GROUP_CHAT_PEER_OFFSET = 2000000000;
@@ -71248,15 +71278,56 @@ function sweepExpired(pairs, now) {
   }
 }
 
+// src/modules/access/pending-groups.ts
+var MAX_ENTRIES = 20;
+
+class PendingGroupsRegistry {
+  entries = new Map;
+  record(input) {
+    const now = new Date().toISOString();
+    const existing = this.entries.get(input.peer_id);
+    if (existing) {
+      existing.last_seen = now;
+      existing.hit_count += 1;
+      return;
+    }
+    if (this.entries.size >= MAX_ENTRIES) {
+      const oldest = [...this.entries.entries()].sort((a13, b2) => a13[1].last_seen.localeCompare(b2[1].last_seen))[0];
+      if (oldest) {
+        this.entries.delete(oldest[0]);
+      }
+    }
+    this.entries.set(input.peer_id, {
+      peer_id: input.peer_id,
+      first_seen: now,
+      last_seen: now,
+      hit_count: 1,
+      sample_from_id: input.from_id,
+      sample_text: input.text.slice(0, 80)
+    });
+  }
+  forget(peerId) {
+    this.entries.delete(peerId);
+  }
+  list() {
+    return [...this.entries.values()].sort((a13, b2) => b2.last_seen.localeCompare(a13.last_seen));
+  }
+}
+PendingGroupsRegistry = __legacyDecorateClassTS([
+  singleton_default()
+], PendingGroupsRegistry);
+
 // src/modules/access/access.service.ts
 class AccessService {
   store;
   pairing;
   users;
-  constructor(store, pairing, users) {
+  pendingGroups;
+  constructor(store, pairing, users, pendingGroups) {
     this.store = store;
     this.pairing = pairing;
     this.users = users;
+    this.pendingGroups = pendingGroups;
   }
   listChats() {
     const file3 = this.store.get();
@@ -71330,7 +71401,11 @@ class AccessService {
     await this.store.update((draft) => {
       draft.chats[key] = entry;
     });
+    this.pendingGroups.forget(input.peer_id);
     return { peer_id: input.peer_id, chat: entry };
+  }
+  listPendingGroups() {
+    return this.pendingGroups.list();
   }
   requireChat(peerId) {
     const chat = this.store.get().chats[peerId];
@@ -71372,7 +71447,8 @@ AccessService = __legacyDecorateClassTS([
   __legacyMetadataTS("design:paramtypes", [
     typeof AccessStore === "undefined" ? Object : AccessStore,
     typeof PairingService === "undefined" ? Object : PairingService,
-    typeof UsersCache === "undefined" ? Object : UsersCache
+    typeof UsersCache === "undefined" ? Object : UsersCache,
+    typeof PendingGroupsRegistry === "undefined" ? Object : PendingGroupsRegistry
   ])
 ], AccessService);
 
@@ -71425,32 +71501,28 @@ var accessController = new Elysia({
   return { ok: true, ...result };
 }, { body: ConsumePairingBodySchema, response: ConsumePairingOkSchema }).get("/pairings", () => ({ pending: access.listPending() }), {
   response: PendingPairingsResponseSchema
+}).get("/groups/pending", () => ({ pending: access.listPendingGroups() }), {
+  response: PendingGroupsResponseSchema,
+  detail: {
+    summary: "Group-chat peer_ids the gate dropped recently \u2014 copy into /vk:access group add."
+  }
 });
 
 // src/modules/health/health.schema.ts
 var HealthzResponseSchema = t.Object({
-  ok: t.Boolean()
-});
-var ReadyzResponseSchema = t.Object({
   ok: t.Boolean(),
   mcp: t.Boolean()
 });
 
 // src/modules/health/health.controller.ts
-var healthController = new Elysia({ name: "health", tags: ["Health"] }).get("/healthz", () => ({ ok: true }), {
-  response: HealthzResponseSchema,
-  detail: {
-    summary: "Liveness probe",
-    description: "Returns 200 as long as the Bun process is up and Elysia is serving."
-  }
-}).get("/readyz", () => {
+var healthController = new Elysia({ name: "health", tags: ["Health"] }).get("/healthz", () => {
   const mcp = isMcpReady();
   return { ok: mcp, mcp };
 }, {
-  response: ReadyzResponseSchema,
+  response: HealthzResponseSchema,
   detail: {
-    summary: "Readiness probe",
-    description: "Reports whether the MCP stdio transport has connected. Use to gate traffic when running under a supervisor."
+    summary: "Liveness + readiness probe",
+    description: "Returns 200 with `{ ok, mcp }`. `ok` reflects overall readiness (currently MCP stdio transport connected). The response itself proves process liveness."
   }
 });
 
@@ -71747,7 +71819,7 @@ class MentionDetector {
       reply_to_bot: this.isReplyToBot(msg.peer_id, msg.reply_to),
       keyboard_payload: false
     };
-    logger.info({
+    logger.debug({
       peer_id: msg.peer_id,
       text: msg.text,
       community_id: communityId,
@@ -71776,8 +71848,9 @@ class MentionDetector {
     return false;
   }
   isReplyToBot(peerId, replyToCmid) {
-    if (replyToCmid == null)
+    if (replyToCmid == null) {
       return false;
+    }
     for (const entry of this.recent.all()) {
       if (entry.peer_id === peerId && entry.conversation_message_id === replyToCmid) {
         return true;
@@ -71884,9 +71957,10 @@ class InboundService {
   mentions;
   permissionRelay;
   messaging;
+  pendingGroups;
   notifier = null;
   denyReplies = new Map;
-  constructor(gate, pairing, attachments, users, mentions, permissionRelay, messaging) {
+  constructor(gate, pairing, attachments, users, mentions, permissionRelay, messaging, pendingGroups) {
     this.gate = gate;
     this.pairing = pairing;
     this.attachments = attachments;
@@ -71894,32 +71968,32 @@ class InboundService {
     this.mentions = mentions;
     this.permissionRelay = permissionRelay;
     this.messaging = messaging;
+    this.pendingGroups = pendingGroups;
   }
   setNotifier(notifier) {
     this.notifier = notifier;
   }
   async handle(msg) {
     try {
-      logger.info({
+      logger.debug({
         peer_id: msg.peer_id,
         from_id: msg.from_id,
         is_group_chat: msg.is_group_chat,
         text: msg.text,
-        reply_to: msg.reply_to,
         attachments: msg.attachments.length
       }, "inbound message received");
       const signals = this.mentions.detect(msg);
       msg.mentioned_bot = signals.name_mention || signals.reply_to_bot || signals.keyboard_payload;
       msg.is_reply_to_bot = signals.reply_to_bot;
-      logger.info({
-        peer_id: msg.peer_id,
-        name_mention: signals.name_mention,
-        reply_to_bot: signals.reply_to_bot,
-        mentioned_bot: msg.mentioned_bot
-      }, "mention signals");
       const verdict = this.gate.check(msg);
-      logger.info({ peer_id: msg.peer_id, from_id: msg.from_id, verdict: verdict.kind }, "gate verdict");
       if (verdict.kind === "drop") {
+        if (msg.is_group_chat && verdict.reason === "chat-not-allowed") {
+          this.pendingGroups.record({
+            peer_id: msg.peer_id,
+            from_id: msg.from_id,
+            text: msg.text
+          });
+        }
         logger.info({ peer_id: msg.peer_id, from_id: msg.from_id, reason: verdict.reason }, "inbound dropped");
         return;
       }
@@ -71978,7 +72052,8 @@ InboundService = __legacyDecorateClassTS([
     typeof UsersCache === "undefined" ? Object : UsersCache,
     typeof MentionDetector === "undefined" ? Object : MentionDetector,
     typeof PermissionRelayService === "undefined" ? Object : PermissionRelayService,
-    typeof MessagingService === "undefined" ? Object : MessagingService
+    typeof MessagingService === "undefined" ? Object : MessagingService,
+    typeof PendingGroupsRegistry === "undefined" ? Object : PendingGroupsRegistry
   ])
 ], InboundService);
 

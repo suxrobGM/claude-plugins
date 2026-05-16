@@ -4,7 +4,6 @@ description: Show VK channel status — transport, connection health, community 
 user-invocable: true
 allowed-tools:
   - Bash(curl http://127.0.0.1:6060/healthz)
-  - Bash(curl http://127.0.0.1:6060/readyz)
   - Bash(curl http://127.0.0.1:6060/config)
   - Bash(curl http://127.0.0.1:6060/state)
   - Bash(curl http://127.0.0.1:6060/access/*)
@@ -18,20 +17,23 @@ into a single summary.
 
 ## Steps
 
-1. `curl -s http://127.0.0.1:6060/healthz` — should return `{"ok":true}`.
-2. `curl -s http://127.0.0.1:6060/readyz` — `{"ok":true,"mcp":true}` once
-   the MCP transport is connected.
-3. `curl -s http://127.0.0.1:6060/state` — runtime block with
+1. `curl -s http://127.0.0.1:6060/healthz` — combined liveness +
+   readiness; returns `{"ok":true,"mcp":true}` when the MCP transport
+   is connected.
+2. `curl -s http://127.0.0.1:6060/state` — runtime block with
    `vk_connected`, `last_error`, `last_event_at`, plus `recent_messages_count`.
-4. `curl -s http://127.0.0.1:6060/config` — effective config with
+3. `curl -s http://127.0.0.1:6060/config` — effective config with
    `vk_token` redacted to `"***"`.
-5. `curl -s http://127.0.0.1:6060/access/policy` — current DM policy
+4. `curl -s http://127.0.0.1:6060/access/policy` — current DM policy
    (`pairing` or `allowlist`). Group chats are always opt-in via
    `/vk:access group add` — no group policy exists.
-6. `curl -s http://127.0.0.1:6060/access/chats` — allowed chat count
+5. `curl -s http://127.0.0.1:6060/access/chats` — allowed chat count
    and per-chat sender count.
-7. `curl -s http://127.0.0.1:6060/access/pairings` — outstanding
+6. `curl -s http://127.0.0.1:6060/access/pairings` — outstanding
    pairing codes (and their expiry).
+7. `curl -s http://127.0.0.1:6060/access/groups/pending` — recently
+   dropped group chats with their canonical `peer_id`, ready to copy
+   into `/vk:access group add`.
 
 Render as a compact status block, e.g.:
 
@@ -43,9 +45,14 @@ VK channel
   policies:         dm=allowlist, group_chat=pairing
   allowed chats:    3 (12 senders total)
   pending pairings: 1
+  pending groups:   1
+    2000000001  hits=4  last 2026-05-14T10:42:18Z  "@claude_vk hi"
+    → /vk:access group add 2000000001
 ```
 
-If either liveness probe fails, the plugin isn't running. Remind the user
+Omit the `pending groups` section when the list is empty.
+
+If `/healthz` is unreachable, the plugin isn't running. Remind the user
 to launch with
 `claude --dangerously-load-development-channels plugin:vk@sukhrob-claude-plugins`.
 

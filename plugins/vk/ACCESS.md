@@ -42,10 +42,10 @@ Groups are **off by default**. Opt each one in by `peer_id`:
 /vk:access group add 2000000042
 ```
 
-VK group-chat peer ids are `>= 2_000_000_000`. The easiest way to find one
-is to invite the bot, send a message, and look at the recent dropped chats
-in the server log — group chats with no entry in `access.json` are silently
-dropped, but the drop is logged with the `peer_id`.
+VK group-chat peer ids (`>= 2_000_000_000`) are **community-relative** —
+the number in `vk.com/im/convo/N` is not the `peer_id` the bot receives.
+To discover it: invite the bot, send a message, then run `/vk:status` —
+recent dropped groups show up there ready to copy into `/vk:access group add`.
 
 ### Group-specific options
 
