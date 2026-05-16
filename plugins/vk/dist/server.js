@@ -11160,8 +11160,8 @@ var require_main = __commonJS((exports, module) => {
     }
     return null;
   }
-  function _resolveHome(envPath) {
-    return envPath[0] === "~" ? path.join(os.homedir(), envPath.slice(1)) : envPath;
+  function _resolveHome(envPath2) {
+    return envPath2[0] === "~" ? path.join(os.homedir(), envPath2.slice(1)) : envPath2;
   }
   function _configVault(options) {
     const debug2 = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -32962,12 +32962,31 @@ function bootstrapContainer() {
 }
 // src/common/logger/logger.ts
 var import_pino = __toESM(require_pino(), 1);
+import { mkdirSync } from "fs";
+import { join as join2 } from "path";
+
+// src/state/paths.ts
+import { homedir } from "os";
+import { join } from "path";
+var root = join(homedir(), ".claude", "channels", "vk");
+var envPath = join(root, ".env");
+var accessPath = join(root, "access.json");
+var peersPath = join(root, "peers.json");
+var inboxDir = join(root, "inbox");
+var logDir = join(root, "log");
+
+// src/common/logger/logger.ts
 var level = process.env.LOG_LEVEL ?? "info";
 var isDev = false;
+function buildProdLogger() {
+  mkdirSync(logDir, { recursive: true });
+  const fileStream = import_pino.destination({ dest: join2(logDir, "vk.log"), sync: false, mkdir: true });
+  return import_pino.pino({ level, base: { plugin: "vk" } }, import_pino.multistream([{ stream: import_pino.destination(2) }, { stream: fileStream }]));
+}
 var logger = isDev ? import_pino.pino({
   level,
   transport: { target: "pino-pretty", options: { colorize: true, destination: 2 } }
-}) : import_pino.pino({ level, base: { plugin: "vk" } }, import_pino.destination(2));
+}) : buildProdLogger();
 // src/common/errors/http.error.ts
 class HttpError extends Error {
   statusCode;
@@ -39207,19 +39226,6 @@ var swaggerPlugin = new Elysia({ name: "swagger", prefix: "/api" }).use(swagger(
 // src/env.ts
 import { readFileSync } from "fs";
 var import_dotenv = __toESM(require_main(), 1);
-
-// src/state/paths.ts
-import { homedir } from "os";
-import { join } from "path";
-var root = join(homedir(), ".claude", "channels", "vk");
-var stateDir = root;
-var envPath = join(root, ".env");
-var accessPath = join(root, "access.json");
-var peersPath = join(root, "peers.json");
-var inboxDir = join(root, "inbox");
-var logDir = join(root, "log");
-
-// src/env.ts
 var EnvSchema = t.Object({
   VK_TOKEN: t.Optional(t.String({ minLength: 1 })),
   PORT: t.Optional(t.String({ default: "6060", pattern: "^[0-9]+$" })),
@@ -71284,21 +71290,24 @@ class AccessService {
     if (!userId && input.screen_name) {
       userId = await this.users.resolveScreenName(input.screen_name);
     }
-    if (!userId)
+    if (!userId) {
       throw new BadRequestError("user-not-found");
+    }
     const id = userId;
     await this.store.update((draft) => {
       const chat = draft.chats[peerId];
-      if (!chat.senders.includes(id))
+      if (!chat.senders.includes(id)) {
         chat.senders.push(id);
+      }
     });
     return { peer_id: Number(peerId), user_id: id };
   }
   async removeSender(peerId, userIdStr) {
     const userId = Number(userIdStr);
     const chat = this.requireChat(peerId);
-    if (!chat.senders.includes(userId))
+    if (!chat.senders.includes(userId)) {
       throw new NotFoundError2("sender-not-listed");
+    }
     await this.store.update((draft) => {
       const c2 = draft.chats[peerId];
       c2.senders = c2.senders.filter((s2) => s2 !== userId);
@@ -71733,11 +71742,21 @@ class MentionDetector {
     const identity = this.community.get();
     const communityId = identity?.id;
     const screenName = identity?.screen_name?.toLowerCase();
-    return {
+    const signals = {
       name_mention: this.hasNameMention(msg.text, communityId, screenName),
       reply_to_bot: this.isReplyToBot(msg.peer_id, msg.reply_to),
       keyboard_payload: false
     };
+    logger.info({
+      peer_id: msg.peer_id,
+      text: msg.text,
+      community_id: communityId,
+      screen_name: screenName,
+      identity_resolved: identity !== null,
+      name_mention: signals.name_mention,
+      reply_to_bot: signals.reply_to_bot
+    }, "mention detect");
+    return signals;
   }
   hasNameMention(text, communityId, screenName) {
     if (!text)
@@ -71777,7 +71796,7 @@ MentionDetector = __legacyDecorateClassTS([
 
 // src/modules/inbound/attachments.ts
 import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
-import { join as join2 } from "path";
+import { join as join3 } from "path";
 var ALLOWED_HOSTS = [
   ".userapi.com",
   ".vk.com",
@@ -71793,7 +71812,7 @@ class AttachmentService {
     if (attachments.length === 0) {
       return attachments;
     }
-    const dir = join2(inboxDir, String(peerId), String(cmid));
+    const dir = join3(inboxDir, String(peerId), String(cmid));
     const out = [];
     let createdDir = false;
     for (let i2 = 0;i2 < attachments.length; i2++) {
@@ -71808,7 +71827,7 @@ class AttachmentService {
           createdDir = true;
         }
         const fileName = pickFileName(a13, i2);
-        const localPath = join2(dir, fileName);
+        const localPath = join3(dir, fileName);
         const bytes = await fetchBytes(a13.url);
         await writeFile2(localPath, bytes);
         out.push({ ...a13, local_path: localPath });
@@ -71881,12 +71900,27 @@ class InboundService {
   }
   async handle(msg) {
     try {
+      logger.info({
+        peer_id: msg.peer_id,
+        from_id: msg.from_id,
+        is_group_chat: msg.is_group_chat,
+        text: msg.text,
+        reply_to: msg.reply_to,
+        attachments: msg.attachments.length
+      }, "inbound message received");
       const signals = this.mentions.detect(msg);
       msg.mentioned_bot = signals.name_mention || signals.reply_to_bot || signals.keyboard_payload;
       msg.is_reply_to_bot = signals.reply_to_bot;
+      logger.info({
+        peer_id: msg.peer_id,
+        name_mention: signals.name_mention,
+        reply_to_bot: signals.reply_to_bot,
+        mentioned_bot: msg.mentioned_bot
+      }, "mention signals");
       const verdict = this.gate.check(msg);
+      logger.info({ peer_id: msg.peer_id, from_id: msg.from_id, verdict: verdict.kind }, "gate verdict");
       if (verdict.kind === "drop") {
-        logger.debug({ peer_id: msg.peer_id, from_id: msg.from_id, reason: verdict.reason }, "inbound dropped");
+        logger.info({ peer_id: msg.peer_id, from_id: msg.from_id, reason: verdict.reason }, "inbound dropped");
         return;
       }
       if (verdict.kind === "deny_with_reply") {
@@ -71907,6 +71941,12 @@ class InboundService {
         return;
       }
       await notifier.notify({ ...msg, attachments: withFiles }, name);
+      logger.info({
+        peer_id: msg.peer_id,
+        from_id: msg.from_id,
+        mentioned: msg.mentioned_bot,
+        reply_to_bot: msg.is_reply_to_bot
+      }, "channel notification emitted");
       if (!msg.is_group_chat) {
         this.permissionRelay.recordLastDmActivator(msg.peer_id, msg.from_id);
       }
@@ -72193,7 +72233,6 @@ function startInbound(mcp) {
 // src/modules/runtime/runtime.schema.ts
 var ConfigResponseSchema = t.Object({
   port: t.Number(),
-  state_dir: t.String(),
   vk_community_id: NullableString,
   vk_community_screen_name: NullableString,
   vk_token: NullableString
@@ -72223,7 +72262,6 @@ class RuntimeService {
     const identity = this.community.get();
     return {
       port: Number(process.env.PORT),
-      state_dir: stateDir,
       vk_community_id: identity?.id ?? null,
       vk_community_screen_name: identity?.screen_name ?? null,
       vk_token: process.env.VK_TOKEN ? "***" : null

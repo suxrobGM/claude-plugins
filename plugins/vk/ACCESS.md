@@ -99,7 +99,7 @@ previous version live.
 ```json
 {
   "version": 1,
-  "policy": "allowlist",
+  "policy": "pairing",
   "chats": {
     "123456": {
       "kind": "dm",
