@@ -14,9 +14,9 @@ The two access flows are deliberately different:
 - **Group chats** are off by default and have to be opted in by `peer_id`.
   There is no group pairing flow.
 
-## DM policies
+## Policies
 
-Set via `dmPolicy`. Default is `pairing`.
+Set via `policy`. Default is `pairing`. `pairing` and `allowlist` only affect DMs (group chats are always opt-in by `peer_id`); `disabled` is a global kill switch that silences both.
 
 | Policy      | Behavior                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------- |
@@ -99,9 +99,7 @@ previous version live.
 ```json
 {
   "version": 1,
-  "policies": {
-    "dm": "allowlist"
-  },
+  "policy": "allowlist",
   "chats": {
     "123456": {
       "kind": "dm",

@@ -70984,15 +70984,13 @@ var PendingPairSchema = t.Object({
 });
 var AccessFileSchema = t.Object({
   version: t.Literal(1, { default: 1 }),
-  policies: t.Object({
-    dm: DmPolicySchema
-  }),
+  policy: DmPolicySchema,
   chats: t.Record(t.String(), ChatEntrySchema),
   pending_pairs: t.Record(t.String(), PendingPairSchema)
 });
 var ACCESS_FILE_DEFAULTS = {
   version: 1,
-  policies: { dm: "pairing" },
+  policy: "pairing",
   chats: {},
   pending_pairs: {}
 };
@@ -71332,11 +71330,11 @@ class AccessService {
     return chat;
   }
   getPolicies() {
-    return { dm: this.store.get().policies.dm };
+    return { dm: this.store.get().policy };
   }
   async setDmPolicy(policy) {
     await this.store.update((draft) => {
-      draft.policies.dm = policy;
+      draft.policy = policy;
     });
     return { dm: policy };
   }
@@ -71687,19 +71685,19 @@ class AccessGate {
   }
   check(msg) {
     const file3 = this.access.get();
-    if (file3.policies.dm === "disabled") {
+    if (file3.policy === "disabled") {
       return { kind: "drop", reason: "disabled" };
     }
     const chat = file3.chats[String(msg.peer_id)];
     if (!chat) {
       if (msg.is_group_chat)
         return { kind: "drop", reason: "chat-not-allowed" };
-      return file3.policies.dm === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "chat-not-allowed" };
+      return file3.policy === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "chat-not-allowed" };
     }
     if (chat.senders.length > 0 && !chat.senders.includes(msg.from_id)) {
       if (msg.is_group_chat)
         return { kind: "drop", reason: "sender-not-allowed" };
-      return file3.policies.dm === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "sender-not-allowed" };
+      return file3.policy === "pairing" ? { kind: "need_pair" } : { kind: "deny_with_reply", reason: "sender-not-allowed" };
     }
     if (msg.is_group_chat) {
       const mentionPolicy = chat.mention_policy ?? "mention_only";

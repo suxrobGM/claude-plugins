@@ -71,9 +71,9 @@ curl -s http://127.0.0.1:6060/access/chats
 curl -s http://127.0.0.1:6060/access/chats/<peer_id>
 ```
 
-### `policy <pairing|allowlist|disabled>` — DM policy
+### `policy <pairing|allowlist|disabled>`
 
-Group chats have no policy switch; toggle is DM-only.
+`pairing` and `allowlist` only affect DMs (group chats are opt-in by `peer_id`). `disabled` is a global kill switch that silences DMs and group chats.
 
 - `pairing` (default): unknown DMs get a 6-char code; known senders pass.
 - `allowlist`: only listed senders pass; others get one "ask the operator" reply per 24h.
