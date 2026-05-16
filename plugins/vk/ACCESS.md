@@ -82,13 +82,13 @@ otherwise nothing reaches the long-poll regardless of the local config.
 
 ## Key differences: groups vs. DMs
 
-| Aspect             | DMs (pairing)                                | Group chats                                                  |
-| ------------------ | -------------------------------------------- | ------------------------------------------------------------ |
-| **Default state**  | Enabled, requires approval                   | Disabled, opt-in                                             |
-| **Approval flow**  | Automatic pairing code exchange              | Manual `/vk:access group add <peer_id>`                      |
-| **Mention gate**   | N/A                                          | `mention_only` (default), `all`, or `reply_only`             |
-| **Sender filter**  | Optional `add-sender`; pairing seeds the DM  | Optional `--allow` list per group; empty = anyone in chat    |
-| **Privacy mode**   | N/A                                          | Affects message delivery; toggle in VK community admin       |
+| Aspect            | DMs (pairing)                               | Group chats                                               |
+| ----------------- | ------------------------------------------- | --------------------------------------------------------- |
+| **Default state** | Enabled, requires approval                  | Disabled, opt-in                                          |
+| **Approval flow** | Automatic pairing code exchange             | Manual `/vk:access group add <peer_id>`                   |
+| **Mention gate**  | N/A                                         | `mention_only` (default), `all`, or `reply_only`          |
+| **Sender filter** | Optional `add-sender`; pairing seeds the DM | Optional `--allow` list per group; empty = anyone in chat |
+| **Privacy mode**  | N/A                                         | Affects message delivery; toggle in VK community admin    |
 
 ## `access.json`
 
@@ -173,22 +173,22 @@ Change it:
 
 ## `/vk:access` sub-actions
 
-The slash skill calls the local admin API at
-`http://127.0.0.1:6060/admin/access/*`. Full reference in
+The slash skill calls the local management API at
+`http://127.0.0.1:6060/access/*`. Full reference in
 [skills/access/SKILL.md](skills/access/SKILL.md).
 
-| Sub-action                                                  | Effect                                                  |
-| ----------------------------------------------------------- | ------------------------------------------------------- |
-| `pair <code>`                                               | Consume a pending DM pairing code.                      |
-| `group add <peer_id> [--allow ids] [--mention-policy …]`    | Opt a group chat in (groups only).                      |
-| `group remove <peer_id>`                                    | Drop a group chat (alias of `remove-chat <peer_id>`).   |
-| `list` / `list <peer_id>`                                   | List allowed chats; per-chat sender detail.             |
-| `policy <pairing\|allowlist>`                               | Set DM policy.                                          |
-| `add-sender <peer_id> <user>`                               | Add user (numeric id or `@screen_name`) to a chat.      |
-| `remove-sender <peer_id> <user_id>`                         | Drop a sender from a chat.                              |
-| `remove-chat <peer_id>`                                     | Drop a chat entirely.                                   |
-| `mention-policy <peer_id> <policy>`                         | Group chats only.                                       |
-| `pending`                                                   | List outstanding pairing codes.                         |
+| Sub-action                                               | Effect                                                |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| `pair <code>`                                            | Consume a pending DM pairing code.                    |
+| `group add <peer_id> [--allow ids] [--mention-policy …]` | Opt a group chat in (groups only).                    |
+| `group remove <peer_id>`                                 | Drop a group chat (alias of `remove-chat <peer_id>`). |
+| `list` / `list <peer_id>`                                | List allowed chats; per-chat sender detail.           |
+| `policy <pairing\|allowlist>`                            | Set DM policy.                                        |
+| `add-sender <peer_id> <user>`                            | Add user (numeric id or `@screen_name`) to a chat.    |
+| `remove-sender <peer_id> <user_id>`                      | Drop a sender from a chat.                            |
+| `remove-chat <peer_id>`                                  | Drop a chat entirely.                                 |
+| `mention-policy <peer_id> <policy>`                      | Group chats only.                                     |
+| `pending`                                                | List outstanding pairing codes.                       |
 
 ## Hand-editing
 

@@ -5,7 +5,9 @@ user-invocable: true
 allowed-tools:
   - Bash(curl http://127.0.0.1:6060/healthz)
   - Bash(curl http://127.0.0.1:6060/readyz)
-  - Bash(curl http://127.0.0.1:6060/admin/*)
+  - Bash(curl http://127.0.0.1:6060/config)
+  - Bash(curl http://127.0.0.1:6060/state)
+  - Bash(curl http://127.0.0.1:6060/access/*)
   - Read
 ---
 
@@ -19,16 +21,16 @@ into a single summary.
 1. `curl -s http://127.0.0.1:6060/healthz` — should return `{"ok":true}`.
 2. `curl -s http://127.0.0.1:6060/readyz` — `{"ok":true,"mcp":true}` once
    the MCP transport is connected.
-3. `curl -s http://127.0.0.1:6060/admin/state` — runtime block with
+3. `curl -s http://127.0.0.1:6060/state` — runtime block with
    `vk_connected`, `last_error`, `last_event_at`, plus `recent_messages_count`.
-4. `curl -s http://127.0.0.1:6060/admin/config` — effective config with
+4. `curl -s http://127.0.0.1:6060/config` — effective config with
    `vk_token` redacted to `"***"`.
-5. `curl -s http://127.0.0.1:6060/admin/access/policy` — current DM policy
+5. `curl -s http://127.0.0.1:6060/access/policy` — current DM policy
    (`pairing` or `allowlist`). Group chats are always opt-in via
    `/vk:access group add` — no group policy exists.
-6. `curl -s http://127.0.0.1:6060/admin/access/chats` — allowed chat count
+6. `curl -s http://127.0.0.1:6060/access/chats` — allowed chat count
    and per-chat sender count.
-7. `curl -s http://127.0.0.1:6060/admin/access/pairings` — outstanding
+7. `curl -s http://127.0.0.1:6060/access/pairings` — outstanding
    pairing codes (and their expiry).
 
 Render as a compact status block, e.g.:

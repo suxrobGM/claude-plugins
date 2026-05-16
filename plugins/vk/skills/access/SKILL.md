@@ -3,13 +3,13 @@ name: access
 description: Manage VK channel access — pair DMs, opt group chats in, edit allowlists, set DM policy. Use when the user wants to pair a DM, add or remove a group chat, approve a sender, list allowed chats, or change DM policy for the VK channel.
 user-invocable: true
 allowed-tools:
-  - Bash(curl http://127.0.0.1:6060/admin/access/*)
+  - Bash(curl http://127.0.0.1:6060/access/*)
   - Read
 ---
 
 # /vk:access — VK Channel Access Control
 
-Calls the local admin API at `http://127.0.0.1:6060/admin/access/*` to manage
+Calls the local management API at `http://127.0.0.1:6060/access/*` to manage
 who can reach the VK channel.
 
 - **DMs** are gated by `dmPolicy` (`pairing` by default). Unknown DMs receive
@@ -30,7 +30,7 @@ Consume a pairing code that the bot DM'd. On success the originating DM peer
 is added to `access.json → chats`.
 
 ```bash
-curl -s -X POST http://127.0.0.1:6060/admin/access/pairings \
+curl -s -X POST http://127.0.0.1:6060/access/pairings \
   -H 'content-type: application/json' \
   -d '{"code":"<CODE>"}'
 ```
@@ -43,12 +43,12 @@ flags seed the initial sender allowlist and mention policy (defaults:
 
 ```bash
 # minimal: trust the whole chat, mention-only activation
-curl -s -X POST http://127.0.0.1:6060/admin/access/groups \
+curl -s -X POST http://127.0.0.1:6060/access/groups \
   -H 'content-type: application/json' \
   -d '{"peer_id":2000000042}'
 
 # lock down to two members and forward every message
-curl -s -X POST http://127.0.0.1:6060/admin/access/groups \
+curl -s -X POST http://127.0.0.1:6060/access/groups \
   -H 'content-type: application/json' \
   -d '{"peer_id":2000000042,"allow":[123456,234567],"mention_policy":"all"}'
 ```
@@ -58,17 +58,17 @@ curl -s -X POST http://127.0.0.1:6060/admin/access/groups \
 Drop a group chat entirely. Same endpoint as `remove-chat`.
 
 ```bash
-curl -s -X DELETE http://127.0.0.1:6060/admin/access/chats/<peer_id>
+curl -s -X DELETE http://127.0.0.1:6060/access/chats/<peer_id>
 ```
 
 ### `list` and `list <peer_id>`
 
 ```bash
 # all allowed chats
-curl -s http://127.0.0.1:6060/admin/access/chats
+curl -s http://127.0.0.1:6060/access/chats
 
 # one chat with its senders
-curl -s http://127.0.0.1:6060/admin/access/chats/<peer_id>
+curl -s http://127.0.0.1:6060/access/chats/<peer_id>
 ```
 
 ### `policy <pairing|allowlist|disabled>` — DM policy
@@ -80,7 +80,7 @@ Group chats have no policy switch; toggle is DM-only.
 - `disabled`: global kill switch — every inbound message (DMs and group chats, allowlisted or not) is dropped silently.
 
 ```bash
-curl -s -X PUT http://127.0.0.1:6060/admin/access/policy \
+curl -s -X PUT http://127.0.0.1:6060/access/policy \
   -H 'content-type: application/json' \
   -d '{"policy":"<policy>"}'
 ```
@@ -92,12 +92,12 @@ screen names via `users.get`. Applies to both DMs and group chats.
 
 ```bash
 # numeric
-curl -s -X POST http://127.0.0.1:6060/admin/access/chats/<peer_id>/senders \
+curl -s -X POST http://127.0.0.1:6060/access/chats/<peer_id>/senders \
   -H 'content-type: application/json' \
   -d '{"user_id":123456}'
 
 # screen name
-curl -s -X POST http://127.0.0.1:6060/admin/access/chats/<peer_id>/senders \
+curl -s -X POST http://127.0.0.1:6060/access/chats/<peer_id>/senders \
   -H 'content-type: application/json' \
   -d '{"screen_name":"vasiliy"}'
 ```
@@ -105,13 +105,13 @@ curl -s -X POST http://127.0.0.1:6060/admin/access/chats/<peer_id>/senders \
 ### `remove-sender <peer_id> <user_id>`
 
 ```bash
-curl -s -X DELETE http://127.0.0.1:6060/admin/access/chats/<peer_id>/senders/<user_id>
+curl -s -X DELETE http://127.0.0.1:6060/access/chats/<peer_id>/senders/<user_id>
 ```
 
 ### `remove-chat <peer_id>`
 
 ```bash
-curl -s -X DELETE http://127.0.0.1:6060/admin/access/chats/<peer_id>
+curl -s -X DELETE http://127.0.0.1:6060/access/chats/<peer_id>
 ```
 
 ### `pending`
@@ -119,7 +119,7 @@ curl -s -X DELETE http://127.0.0.1:6060/admin/access/chats/<peer_id>
 Outstanding pairing codes (peer + expiry).
 
 ```bash
-curl -s http://127.0.0.1:6060/admin/access/pairings
+curl -s http://127.0.0.1:6060/access/pairings
 ```
 
 ### `mention-policy <peer_id> <mention_only|all|reply_only>`
@@ -130,7 +130,7 @@ to the bot; `reply_only` wakes only on direct replies; `all` forwards every
 allowed-sender message.
 
 ```bash
-curl -s -X PUT http://127.0.0.1:6060/admin/access/chats/<peer_id>/mention-policy \
+curl -s -X PUT http://127.0.0.1:6060/access/chats/<peer_id>/mention-policy \
   -H 'content-type: application/json' \
   -d '{"policy":"mention_only"}'
 ```

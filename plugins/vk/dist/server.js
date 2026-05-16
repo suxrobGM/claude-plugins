@@ -71373,8 +71373,8 @@ AccessService = __legacyDecorateClassTS([
 var access = instance.resolve(AccessService);
 var accessController = new Elysia({
   name: "access",
-  prefix: "/admin/access",
-  tags: ["Admin"]
+  prefix: "/access",
+  tags: ["Access"]
 }).get("/chats", () => ({ chats: access.listChats() }), {
   response: ChatsListResponseSchema,
   detail: { summary: "List allowed chats." }
@@ -71389,7 +71389,7 @@ var accessController = new Elysia({
   response: SendersListResponseSchema
 }).post("/chats/:peer_id/senders", async ({ params, body, set: set3 }) => {
   const added = await access.addSender(params.peer_id, body);
-  set3.headers["Location"] = `/admin/access/chats/${params.peer_id}/senders/${added.user_id}`;
+  set3.headers["Location"] = `/access/chats/${params.peer_id}/senders/${added.user_id}`;
   set3.status = 201;
   return { ok: true, ...added };
 }, { params: PeerIdParamSchema, body: AddSenderBodySchema, response: AddSenderResponseSchema }).delete("/chats/:peer_id/senders/:user_id", async ({ params }) => {
@@ -71404,7 +71404,7 @@ var accessController = new Elysia({
   response: SetMentionPolicyResponseSchema
 }).post("/groups", async ({ body, set: set3 }) => {
   const added = await access.addGroup(body);
-  set3.headers["Location"] = `/admin/access/chats/${added.peer_id}`;
+  set3.headers["Location"] = `/access/chats/${added.peer_id}`;
   set3.status = 201;
   return { ok: true, ...added };
 }, { body: AddGroupBodySchema, response: AddGroupResponseSchema }).get("/policy", () => access.getPolicies(), {
@@ -71420,59 +71420,32 @@ var accessController = new Elysia({
   response: PendingPairingsResponseSchema
 });
 
-// src/modules/admin/admin.schema.ts
-var ConfigResponseSchema = t.Object({
-  port: t.Number(),
-  state_dir: t.String(),
-  vk_community_id: NullableString,
-  vk_community_screen_name: NullableString,
-  vk_token: NullableString
+// src/modules/health/health.schema.ts
+var HealthzResponseSchema = t.Object({
+  ok: t.Boolean()
 });
-var StateResponseSchema = t.Object({
-  runtime: t.Object({
-    mcp_ready: t.Boolean(),
-    vk_connected: t.Boolean(),
-    last_error: NullableString,
-    last_error_at: NullableString,
-    last_event_at: NullableString
-  }),
-  recent_messages_count: t.Integer()
+var ReadyzResponseSchema = t.Object({
+  ok: t.Boolean(),
+  mcp: t.Boolean()
 });
 
-// src/common/status.ts
-class StatusRegistry {
-  status = {
-    vk_connected: false,
-    last_error: null,
-    last_error_at: null,
-    last_event_at: null
-  };
-  get() {
-    return this.status;
+// src/modules/health/health.controller.ts
+var healthController = new Elysia({ name: "health", tags: ["Health"] }).get("/healthz", () => ({ ok: true }), {
+  response: HealthzResponseSchema,
+  detail: {
+    summary: "Liveness probe",
+    description: "Returns 200 as long as the Bun process is up and Elysia is serving."
   }
-  markConnected() {
-    this.status = {
-      ...this.status,
-      vk_connected: true,
-      last_error: null,
-      last_error_at: null
-    };
+}).get("/readyz", () => {
+  const mcp = isMcpReady();
+  return { ok: mcp, mcp };
+}, {
+  response: ReadyzResponseSchema,
+  detail: {
+    summary: "Readiness probe",
+    description: "Reports whether the MCP stdio transport has connected. Use to gate traffic when running under a supervisor."
   }
-  markDisconnected(error52) {
-    this.status = {
-      ...this.status,
-      vk_connected: false,
-      last_error: error52,
-      last_error_at: new Date().toISOString()
-    };
-  }
-  markEvent() {
-    this.status = { ...this.status, last_event_at: new Date().toISOString() };
-  }
-}
-StatusRegistry = __legacyDecorateClassTS([
-  singleton_default()
-], StatusRegistry);
+});
 
 // src/modules/access/community-resolver.ts
 class CommunityResolver {
@@ -71507,79 +71480,6 @@ CommunityResolver = __legacyDecorateClassTS([
     typeof VkClient === "undefined" ? Object : VkClient
   ])
 ], CommunityResolver);
-
-// src/modules/admin/admin.service.ts
-class AdminService {
-  status;
-  recent;
-  community;
-  constructor(status2, recent, community) {
-    this.status = status2;
-    this.recent = recent;
-    this.community = community;
-  }
-  getConfig() {
-    const identity = this.community.get();
-    return {
-      port: Number(process.env.PORT),
-      state_dir: stateDir,
-      vk_community_id: identity?.id ?? null,
-      vk_community_screen_name: identity?.screen_name ?? null,
-      vk_token: process.env.VK_TOKEN ? "***" : null
-    };
-  }
-  getState() {
-    return {
-      runtime: { mcp_ready: isMcpReady(), ...this.status.get() },
-      recent_messages_count: this.recent.size()
-    };
-  }
-}
-AdminService = __legacyDecorateClassTS([
-  singleton_default(),
-  __legacyMetadataTS("design:paramtypes", [
-    typeof StatusRegistry === "undefined" ? Object : StatusRegistry,
-    typeof RecentSentMessages === "undefined" ? Object : RecentSentMessages,
-    typeof CommunityResolver === "undefined" ? Object : CommunityResolver
-  ])
-], AdminService);
-
-// src/modules/admin/admin.controller.ts
-var adminService = instance.resolve(AdminService);
-var adminController = new Elysia({ name: "admin", prefix: "/admin", tags: ["Admin"] }).get("/config", () => adminService.getConfig(), {
-  response: ConfigResponseSchema,
-  detail: { summary: "Effective config with secrets redacted." }
-}).get("/state", () => adminService.getState(), {
-  response: StateResponseSchema,
-  detail: { summary: "Process-runtime status snapshot." }
-});
-
-// src/modules/health/health.schema.ts
-var HealthzResponseSchema = t.Object({
-  ok: t.Boolean()
-});
-var ReadyzResponseSchema = t.Object({
-  ok: t.Boolean(),
-  mcp: t.Boolean()
-});
-
-// src/modules/health/health.controller.ts
-var healthController = new Elysia({ name: "health", tags: ["Health"] }).get("/healthz", () => ({ ok: true }), {
-  response: HealthzResponseSchema,
-  detail: {
-    summary: "Liveness probe",
-    description: "Returns 200 as long as the Bun process is up and Elysia is serving."
-  }
-}).get("/readyz", () => {
-  const mcp = isMcpReady();
-  return { ok: mcp, mcp };
-}, {
-  response: ReadyzResponseSchema,
-  detail: {
-    summary: "Readiness probe",
-    description: "Reports whether the MCP stdio transport has connected. Use to gate traffic when running under a supervisor."
-  }
-});
 
 // src/modules/permission-relay/permission-relay.schema.ts
 var PermissionRequestParamsSchema = exports_external2.object({
@@ -72043,6 +71943,41 @@ InboundService = __legacyDecorateClassTS([
     typeof MessagingService === "undefined" ? Object : MessagingService
   ])
 ], InboundService);
+
+// src/common/status.ts
+class StatusRegistry {
+  status = {
+    vk_connected: false,
+    last_error: null,
+    last_error_at: null,
+    last_event_at: null
+  };
+  get() {
+    return this.status;
+  }
+  markConnected() {
+    this.status = {
+      ...this.status,
+      vk_connected: true,
+      last_error: null,
+      last_error_at: null
+    };
+  }
+  markDisconnected(error52) {
+    this.status = {
+      ...this.status,
+      vk_connected: false,
+      last_error: error52,
+      last_error_at: new Date().toISOString()
+    };
+  }
+  markEvent() {
+    this.status = { ...this.status, last_event_at: new Date().toISOString() };
+  }
+}
+StatusRegistry = __legacyDecorateClassTS([
+  singleton_default()
+], StatusRegistry);
 // src/modules/inbound/message-adapter.ts
 function vkMessageToInbound(m3) {
   const msg = m3 ?? {};
@@ -72257,6 +72192,71 @@ function startInbound(mcp) {
   logger.info("inbound ready; long-poll starting");
 }
 
+// src/modules/runtime/runtime.schema.ts
+var ConfigResponseSchema = t.Object({
+  port: t.Number(),
+  state_dir: t.String(),
+  vk_community_id: NullableString,
+  vk_community_screen_name: NullableString,
+  vk_token: NullableString
+});
+var StateResponseSchema = t.Object({
+  runtime: t.Object({
+    mcp_ready: t.Boolean(),
+    vk_connected: t.Boolean(),
+    last_error: NullableString,
+    last_error_at: NullableString,
+    last_event_at: NullableString
+  }),
+  recent_messages_count: t.Integer()
+});
+
+// src/modules/runtime/runtime.service.ts
+class RuntimeService {
+  status;
+  recent;
+  community;
+  constructor(status2, recent, community) {
+    this.status = status2;
+    this.recent = recent;
+    this.community = community;
+  }
+  getConfig() {
+    const identity = this.community.get();
+    return {
+      port: Number(process.env.PORT),
+      state_dir: stateDir,
+      vk_community_id: identity?.id ?? null,
+      vk_community_screen_name: identity?.screen_name ?? null,
+      vk_token: process.env.VK_TOKEN ? "***" : null
+    };
+  }
+  getState() {
+    return {
+      runtime: { mcp_ready: isMcpReady(), ...this.status.get() },
+      recent_messages_count: this.recent.size()
+    };
+  }
+}
+RuntimeService = __legacyDecorateClassTS([
+  singleton_default(),
+  __legacyMetadataTS("design:paramtypes", [
+    typeof StatusRegistry === "undefined" ? Object : StatusRegistry,
+    typeof RecentSentMessages === "undefined" ? Object : RecentSentMessages,
+    typeof CommunityResolver === "undefined" ? Object : CommunityResolver
+  ])
+], RuntimeService);
+
+// src/modules/runtime/runtime.controller.ts
+var runtimeService = instance.resolve(RuntimeService);
+var runtimeController = new Elysia({ name: "runtime", tags: ["Runtime"] }).get("/config", () => runtimeService.getConfig(), {
+  response: ConfigResponseSchema,
+  detail: { summary: "Effective config with secrets redacted." }
+}).get("/state", () => runtimeService.getState(), {
+  response: StateResponseSchema,
+  detail: { summary: "Process-runtime status snapshot." }
+});
+
 // src/app.ts
 validateEnv();
 bootstrapContainer();
@@ -72265,5 +72265,5 @@ await instance.resolve(UsersCache).init();
 await instance.resolve(PairingService).pruneExpired();
 var mcp = await startMcpServer();
 startInbound(mcp);
-var app = new Elysia().use(errorMiddleware).use(swaggerPlugin).use(healthController).use(adminController).use(accessController).listen(parseInt(process.env.PORT));
+var app = new Elysia().use(errorMiddleware).use(swaggerPlugin).use(healthController).use(runtimeController).use(accessController).listen(parseInt(process.env.PORT));
 logger.info(`Plugin server running at http://${app.server?.hostname}:${app.server?.port}`);
