@@ -16,7 +16,7 @@ Then pick a plugin from the list below.
 | --- | --- | --- |
 | [`vk`](./plugins/vk) | VK.com channel — DMs, group chats, message history, attachments, remote permission relay. | [suxrobgm/claude-vk](https://github.com/suxrobgm/claude-vk) |
 
-Install with `/plugin install <name>@claude-plugins`.
+Install with `/plugin install <name>@sukhrob-claude-plugins`.
 
 ## How this marketplace works
 

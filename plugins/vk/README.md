@@ -6,7 +6,7 @@ VK.com channel for Claude Code — DM and group-chat bridge with message history
 
 ```text
 /plugin marketplace add https://github.com/suxrobgm/claude-plugins
-/plugin install vk@claude-plugins
+/plugin install vk@sukhrob-claude-plugins
 ```
 
 Then save your VK community access token:
@@ -18,7 +18,7 @@ Then save your VK community access token:
 And restart with the channel attached:
 
 ```bash
-claude --dangerously-load-development-channels plugin:vk@claude-plugins
+claude --dangerously-load-development-channels plugin:vk@sukhrob-claude-plugins
 ```
 
 ## Requirements
