@@ -1,13 +1,13 @@
 ---
 name: access
-description: Manage VK channel access — pair DMs, opt group chats in, edit allowlists, set DM policy. Use when the user wants to pair a DM, add or remove a group chat, approve a sender, list allowed chats, or change DM policy for the VK channel.
+description: Manage VK channel access - pair DMs, opt group chats in, edit allowlists, set DM policy. Use when the user wants to pair a DM, add or remove a group chat, approve a sender, list allowed chats, or change DM policy for the VK channel.
 user-invocable: true
 allowed-tools:
   - Bash(curl http://127.0.0.1:6060/access/*)
   - Read
 ---
 
-# /vk:access — VK Channel Access Control
+# /vk:access - VK Channel Access Control
 
 Calls the local management API at `http://127.0.0.1:6060/access/*` to manage
 who can reach the VK channel.
@@ -15,16 +15,16 @@ who can reach the VK channel.
 - **DMs** are gated by `dmPolicy` (`pairing` by default). Unknown DMs receive
   a 6-character code; the operator runs `pair <code>` to approve.
 - **Group chats** are off by default. Opt each one in by `peerId` with
-  `group add <peerId>` — there is no group pairing flow.
+  `group add <peerId>` - there is no group pairing flow.
 
-Arguments: `$ARGUMENTS` — the first token is the sub-action, the rest are
+Arguments: `$ARGUMENTS` - the first token is the sub-action, the rest are
 sub-action arguments.
 
 ---
 
 ## Sub-actions
 
-### `pair <code>` — DM only
+### `pair <code>` - DM only
 
 Consume a pairing code that the bot DM'd. On success the originating DM peer
 is added to `access.json → chats`.
@@ -77,7 +77,7 @@ curl -s http://127.0.0.1:6060/access/chats/<peerId>
 
 - `pairing` (default): unknown DMs get a 6-char code; known senders pass.
 - `allowlist`: only listed senders pass; others get one "ask the operator" reply per 24h.
-- `disabled`: global kill switch — every inbound message (DMs and group chats, allowlisted or not) is dropped silently.
+- `disabled`: global kill switch - every inbound message (DMs and group chats, allowlisted or not) is dropped silently.
 
 ```bash
 curl -s -X PUT http://127.0.0.1:6060/access/policy \
@@ -124,7 +124,7 @@ curl -s http://127.0.0.1:6060/access/pairings
 ### `mention-policy <peerId> <mention_only|all|reply_only>`
 
 Group-chat activation policy. Controls _when_ the bot activates on allowed
-senders — `mention_only` (default) wakes only on `@<community>` or replies
+senders - `mention_only` (default) wakes only on `@<community>` or replies
 to the bot; `reply_only` wakes only on direct replies; `all` forwards every
 allowed-sender message.
 
@@ -138,7 +138,7 @@ curl -s -X PUT http://127.0.0.1:6060/access/chats/<peerId>/mention-policy \
 
 ## Notes
 
-- Hand-editing `~/.claude/channels/vk/access.json` works too — the server
+- Hand-editing `~/.claude/channels/vk/access.json` works too - the server
   watches the file and hot-reloads valid edits. Malformed edits are rejected
   and the previous version stays live.
 - All endpoints validate input. Errors come back as `{ "error": "..." }`

@@ -245,7 +245,7 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 > The term is primarily promoted by Dutch institutions, not by the people themselves. You don't say "Netherlands, Europe" as an address, yet this mislabeling continues in official documents.
 
-**Terminal-injected text** (e.g. outreach drafts): plain ASCII only — the PTY mangles non-ASCII punctuation.
+**Terminal-injected text** (e.g. outreach drafts): plain ASCII only - the PTY mangles non-ASCII punctuation.
 
 ### 14. Overuse of Boldface
 

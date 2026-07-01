@@ -6,7 +6,7 @@ argument-hint: "<board-domain>"
 
 # Get Verification Code
 
-Return the most recent verification code (or magic link) for a given board domain. Output is a single JSON object on stdout — the caller parses it and fills the form. Argument is the board domain (`linkedin.com`, `workday.com`, etc.).
+Return the most recent verification code (or magic link) for a given board domain. Output is a single JSON object on stdout - the caller parses it and fills the form. Argument is the board domain (`linkedin.com`, `workday.com`, etc.).
 
 ## Setup
 
@@ -53,8 +53,8 @@ If still nothing, also look for unclassified messages whose body matches the boa
 2. Inspect `subject`, `fromAddress`, `snippet`, `rawBody`.
 3. If it's not a real verification for `$BOARD_DOMAIN`, print `{}` and exit.
 4. Extract:
-   - **`verificationCode`** — 4–8 digit alphanumeric. Patterns: `\b\d{4,8}\b`, `code is (\S+)`, `verification code:\s*(\S+)`.
-   - **`verificationLink`** — "click to verify" URL. Anchors containing "verify", "confirm", "magic link", or links to the board's own domain.
+   - **`verificationCode`** - 4–8 digit alphanumeric. Patterns: `\b\d{4,8}\b`, `code is (\S+)`, `verification code:\s*(\S+)`.
+   - **`verificationLink`** - "click to verify" URL. Anchors containing "verify", "confirm", "magic link", or links to the board's own domain.
 5. PATCH the message:
 
    ```bash

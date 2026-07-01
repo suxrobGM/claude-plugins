@@ -4,7 +4,7 @@ description: Parse a resume's uploaded PDF into structured JSON (basics, experie
 argument-hint: "[resume-id] [--force]"
 ---
 
-# Extract Resume — Source PDF → Structured Data
+# Extract Resume - Source PDF → Structured Data
 
 Read a resume's uploaded source PDF and produce JSON matching the JobPilot resume schema, then save via the API. Inverse of the editor.
 
@@ -104,12 +104,12 @@ Hard rules:
 - Current role → `end: "Present"` (or omit).
 - Skills: keep the PDF's grouping if present; flat list → single group `"Skills"`.
 - Strip leading bullet glyphs (•, ▪, –) from bullet text; keep the rest unchanged.
-- A project's tech-stack line goes in `keywords` only — never copy it into `description`.
-- For long PDFs, use `Read` with `pages` to ingest all pages — don't silently drop later-page entries.
+- A project's tech-stack line goes in `keywords` only - never copy it into `description`.
+- For long PDFs, use `Read` with `pages` to ingest all pages - don't silently drop later-page entries.
 
 ## Step 5: Save
 
-The PUT body must be `{ "content": <resume-object> }` — the API rejects a bare resume payload with 400 "label or content required". Write the file with that wrapper, then send it:
+The PUT body must be `{ "content": <resume-object> }` - the API rejects a bare resume payload with 400 "label or content required". Write the file with that wrapper, then send it:
 
 ```bash
 curl -fsS -H "authorization: Bearer $JOBPILOT_API_TOKEN" -X PUT "$JOBPILOT_API/api/resumes/$RESUME_ID" \
@@ -124,4 +124,4 @@ Where `resume.json` looks like `{"content": {"basics": {...}, "experience": [...
 > Extracted resume {id} ({label}) → version {n}.
 > Review at <$JOBPILOT_WEB/resumes/{id}>.
 
-Do not echo the parsed fields — the editor and preview show them.
+Do not echo the parsed fields - the editor and preview show them.

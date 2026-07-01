@@ -3,8 +3,8 @@
 Every inbound message is gated on `from_id`. DMs and group chats follow
 different rules:
 
-- **DMs** — controlled by `dmPolicy`. Can self-pair.
-- **Group chats** — off by default, opt in by `peer_id`. No pairing.
+- **DMs** - controlled by `dmPolicy`. Can self-pair.
+- **Group chats** - off by default, opt in by `peer_id`. No pairing.
 
 ## DM policy
 
@@ -12,7 +12,7 @@ different rules:
 | ----------- | ----------------------------------------------------------------------- |
 | `pairing`   | Unknown DM → 6-char pairing code. Operator runs `/vk:access pair`.      |
 | `allowlist` | Only listed senders forwarded; others get one "ask the operator" reply. |
-| `disabled`  | Global kill switch — drops every message, allowlisted or not.           |
+| `disabled`  | Global kill switch - drops every message, allowlisted or not.           |
 
 ```text
 /vk:access policy pairing|allowlist|disabled
@@ -41,7 +41,7 @@ Adjust after the fact:
 
 ### Mention policy (group chats only)
 
-A non-mention from an allowed sender is silently dropped — not a denial.
+A non-mention from an allowed sender is silently dropped - not a denial.
 
 | Policy                   | Forwards when...                                                                             |
 | ------------------------ | -------------------------------------------------------------------------------------------- |
@@ -49,7 +49,7 @@ A non-mention from an allowed sender is silently dropped — not a denial.
 | `all`                    | Every message from an allowed sender. Requires VK "Read all messages" on.                    |
 | `reply_only`             | Only quote-replies to a bot message.                                                         |
 
-Reply-to-bot is restart-safe — matched by `reply_message.from_id == -<communityId>`.
+Reply-to-bot is restart-safe - matched by `reply_message.from_id == -<communityId>`.
 
 ### Friendly mentions (`mentionPatterns`)
 
@@ -65,8 +65,8 @@ Hot-reloads on save. `"claude"` hits `"Hey Claude, do X"` but not `"claudette"`.
 
 VK community admin → "Bots → Conversation messages":
 
-- **Off** — VK only delivers mentions/replies. Good pairing for `mention_only`.
-- **On** — required for `mentionPolicy=all`. Without it, the long-poll sees nothing else.
+- **Off** - VK only delivers mentions/replies. Good pairing for `mention_only`.
+- **On** - required for `mentionPolicy=all`. Without it, the long-poll sees nothing else.
 
 ## `access.json`
 
@@ -113,7 +113,7 @@ on save; invalid edits are rejected and the previous version stays live.
 3. Operator runs `/vk:access pair <code>`.
 4. DM peer is added as `{ kind: "dm" }`.
 
-Group chats never pair — they must be added explicitly.
+Group chats never pair - they must be added explicitly.
 
 ## Permission relay routing
 

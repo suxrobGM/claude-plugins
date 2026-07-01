@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "sukhrob-claude-plugins",
-  "description": "Claude Code plugins by Sukhrob Ilyosbekov — pre-bundled, no install step.",
+  "description": "Claude Code plugins by Sukhrob Ilyosbekov - pre-bundled, no install step.",
   "owner": {
     "name": "Sukhrob Ilyosbekov",
     "email": "suxrobgm@gmail.com"
@@ -10,7 +10,7 @@
     {
       "name": "vk",
       "source": "./plugins/vk",
-      "description": "VK.com channel for Claude Code — DM and group-chat bridge with message history, search, attachments, and remote permission relay.",
+      "description": "VK.com channel for Claude Code - DM and group-chat bridge with message history, search, attachments, and remote permission relay.",
       "homepage": "https://github.com/suxrobgm/claude-vk",
       "category": "communication",
       "author": {
@@ -21,7 +21,7 @@
     {
       "name": "jobpilot",
       "source": "./plugins/jobpilot",
-      "description": "JobPilot — search job boards, tailor resumes, and auto-apply from Claude Code or Codex. Run the `setup` skill to install the local agent; campaigns run through the agent terminal in your JobPilot dashboard.",
+      "description": "JobPilot - search job boards, tailor resumes, and auto-apply from Claude Code or Codex. Run the `setup` skill to install the local agent; campaigns run through the agent terminal in your JobPilot dashboard.",
       "homepage": "https://github.com/suxrobgm/jobpilot",
       "category": "productivity",
       "author": {

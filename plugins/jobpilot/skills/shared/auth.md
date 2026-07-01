@@ -14,7 +14,7 @@
 
 ## Login Challenges
 
-Typically **once per board per session** — handle once, then subsequent applications run uninterrupted.
+Typically **once per board per session** - handle once, then subsequent applications run uninterrupted.
 
 ### Email Verification Codes
 
@@ -35,7 +35,7 @@ Ask the user to complete it; wait for confirmation.
 
 ## Credential lookup
 
-Resolve the login in **one call** — the API applies the precedence (per-board override → credential scoped to the domain → `default`) server-side. Never merge `/api/credentials` and `/api/job-boards` by hand.
+Resolve the login in **one call** - the API applies the precedence (per-board override → credential scoped to the domain → `default`) server-side. Never merge `/api/credentials` and `/api/job-boards` by hand.
 
 ```bash
 curl -fsS -H "authorization: Bearer $JOBPILOT_API_TOKEN" "$JOBPILOT_API/api/credentials/resolve?domain=<board-domain>"
@@ -49,7 +49,7 @@ After submitting the form, branch on the portal's response:
 
 - **Accepted** → proceed.
 - **"Account doesn't exist" / "no user found"** → **register without asking**: click Sign up, snapshot the form, fill from profile + credential password, submit. Handle email verification if it follows. A missing account is never a reason to stop in loop skills.
-- **"Wrong password" / invalid** — stored password is stale. Click Forgot password, fill email, submit. Then run the `get-code` skill for `<board-domain>`: `link` → navigate; `code` → enter where prompted; `{}` → ask the user. Set a new password, then persist:
+- **"Wrong password" / invalid** - stored password is stale. Click Forgot password, fill email, submit. Then run the `get-code` skill for `<board-domain>`: `link` → navigate; `code` → enter where prompted; `{}` → ask the user. Set a new password, then persist:
   - Persist to wherever the resolver's `source` pointed: `board` → `PATCH /api/job-boards/<id> { "password": "<new>" }`; `domain`/`default` → `PATCH /api/credentials/<id> { "password": "<new>" }`.
   - Retry login.
 - **Unresponsive / unknown** → one-shot retry; if still stuck, proceed without auth (public listings may still work).

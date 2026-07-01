@@ -1,12 +1,12 @@
 ---
 name: solve-captcha
-description: Solve a CAPTCHA on the current browser tab. Free path first — frictionless checkbox + distorted-text via your own vision; image challenges (reCAPTCHA / hCaptcha / Turnstile) go to a configured token service (2captcha / CapSolver). Returns solved / unsolved for the caller to fall back.
+description: Solve a CAPTCHA on the current browser tab. Free path first - frictionless checkbox + distorted-text via your own vision; image challenges (reCAPTCHA / hCaptcha / Turnstile) go to a configured token service (2captcha / CapSolver). Returns solved / unsolved for the caller to fall back.
 argument-hint: "[url | ref_or_description] (optional; a URL → navigate there first; omit → auto-detect)"
 ---
 
 # Solve CAPTCHA
 
-Clear a CAPTCHA on the **current browser tab**. Return **solved** or **unsolved** (the caller falls back). Authorized use only — the user's own applications.
+Clear a CAPTCHA on the **current browser tab**. Return **solved** or **unsolved** (the caller falls back). Authorized use only - the user's own applications.
 
 ```bash
 JOBPILOT_API="${JOBPILOT_API:-https://jobpilot.suxrobgm.net}"
@@ -16,14 +16,14 @@ JOBPILOT_API="${JOBPILOT_API:-https://jobpilot.suxrobgm.net}"
 
 If the argument is a URL → `browser_navigate` there first. `browser_resize` to a tall viewport (`1280×1400`) so the widget is fully on-screen, then `browser_snapshot` + `browser_take_screenshot` the captcha and classify:
 
-- **checkbox** (reCAPTCHA "I'm not a robot" / hCaptcha / Turnstile) → §2. **Always try this first** — it escalates to the service only if it opens an image challenge.
+- **checkbox** (reCAPTCHA "I'm not a robot" / hCaptcha / Turnstile) → §2. **Always try this first** - it escalates to the service only if it opens an image challenge.
 - **text** (distorted characters + answer field) → §3.
 - **image-grid already open** (no checkbox to click) → §4 directly.
 - **slider / unknown** → **unsolved**.
 
 ## 2. Checkbox (free, first)
 
-`browser_click` the control by `ref`, `browser_wait_for`, re-snapshot. Verified → **solved**. An image grid opened instead → escalate to §4. **Never hand-click tiles** — automated clicks get flagged and fail.
+`browser_click` the control by `ref`, `browser_wait_for`, re-snapshot. Verified → **solved**. An image grid opened instead → escalate to §4. **Never hand-click tiles** - automated clicks get flagged and fail.
 
 ## 3. Text (free)
 
@@ -59,7 +59,7 @@ TOKEN=$(echo "$RESP" | jq -r '.token // empty')
 
 Empty `TOKEN` (no key configured, or solver failure) → **unsolved**.
 
-Inject the token (sanctioned `browser_evaluate` — a real solved token, not a faked click), then `browser_click` the form's submit `ref`:
+Inject the token (sanctioned `browser_evaluate` - a real solved token, not a faked click), then `browser_click` the form's submit `ref`:
 
 ```js
 (t) => {
@@ -83,6 +83,6 @@ hCaptcha uses `h-captcha-response`; Turnstile uses `cf-turnstile-response`. `bro
 ## Rules
 
 - **Retry at most 3 rounds**, then **unsolved**. Never loop indefinitely.
-- **Trusted clicks on widgets** — `browser_click` a `ref` only. Never fake a widget click with `browser_evaluate` / `.click()` / `scrollIntoView`; reCAPTCHA flags synthetic clicks and hard-fails. JS is only for reading the sitekey and injecting a service token.
+- **Trusted clicks on widgets** - `browser_click` a `ref` only. Never fake a widget click with `browser_evaluate` / `.click()` / `scrollIntoView`; reCAPTCHA flags synthetic clicks and hard-fails. JS is only for reading the sitekey and injecting a service token.
 - **unsolved** → leave the page as-is for the caller to take over.
 - Service solves cost ~$1–3 / 1000. Narrow snapshots (`../shared/browser-tips.md`).

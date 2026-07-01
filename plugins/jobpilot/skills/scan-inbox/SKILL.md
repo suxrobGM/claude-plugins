@@ -1,12 +1,12 @@
 ---
 name: scan-inbox
 description: Classify unscanned mailbox messages, fuzzy-match each to an existing application, and write the proposal back. The user approves in /inbox.
-argument-hint: "[message-id] — omit to scan all pending unscanned; pass an id to (re)scan just that message"
+argument-hint: "[message-id] - omit to scan all pending unscanned; pass an id to (re)scan just that message"
 ---
 
-# Scan Inbox — Triage Pending Email
+# Scan Inbox - Triage Pending Email
 
-Classify recent email and link each thread to an existing `Application` when there's a confident match. This skill does **not** write `StageEvent` rows or mutate `Application.stage` — the user approves from `/inbox`, that's where state changes happen.
+Classify recent email and link each thread to an existing `Application` when there's a confident match. This skill does **not** write `StageEvent` rows or mutate `Application.stage` - the user approves from `/inbox`, that's where state changes happen.
 
 ## Setup
 
@@ -28,13 +28,13 @@ If `.connected === false`, stop:
 
 ## Phase 2: Pick the Queue
 
-**One message** — an id was passed (a re-scan from the inbox table). Fetch just it and classify it again even if it's already classified or reviewed:
+**One message** - an id was passed (a re-scan from the inbox table). Fetch just it and classify it again even if it's already classified or reviewed:
 
 ```bash
 curl -fsS -H "authorization: Bearer $JOBPILOT_API_TOKEN" "$JOBPILOT_API/api/email/messages/<id>"
 ```
 
-**All pending** — no argument. Sync, then pull the unscanned queue:
+**All pending** - no argument. Sync, then pull the unscanned queue:
 
 ```bash
 curl -fsS -H "authorization: Bearer $JOBPILOT_API_TOKEN" -X POST "$JOBPILOT_API/api/email/sync"
@@ -59,7 +59,7 @@ For each message, pick one classification:
 
 Use `subject`, `fromAddress`, `fromDomain`, `snippet`, `rawBody` as evidence.
 
-**Classify by purpose, not topic.** Mark `interviewing | rejected | offer` only for an individualized reply or decision about a specific application the user submitted. Naming an applied company doesn't make a message relevant — bulk/automated mail (job alerts, digests, "your profile was viewed", auto-acknowledgements) is `irrelevant`. When unsure, pick `irrelevant`.
+**Classify by purpose, not topic.** Mark `interviewing | rejected | offer` only for an individualized reply or decision about a specific application the user submitted. Naming an applied company doesn't make a message relevant - bulk/automated mail (job alerts, digests, "your profile was viewed", auto-acknowledgements) is `irrelevant`. When unsure, pick `irrelevant`.
 
 ### Match to Application (non-verification only)
 
@@ -73,7 +73,7 @@ For `interviewing | rejected | offer`:
    ```
 
 2. Score each against `fromName` / `fromDomain` / `subject`. Pick the best if score ≥ 0.7 (0–1).
-3. If nothing scores well enough — or the email only _mentions_ the company rather than addressing the user's application — leave `matchedAppId` and `matchScore` as `null`.
+3. If nothing scores well enough - or the email only _mentions_ the company rather than addressing the user's application - leave `matchedAppId` and `matchScore` as `null`.
 
 For `verification`: do NOT propose a match. `get-code` handles those.
 
@@ -106,8 +106,8 @@ curl -fsS -H "authorization: Bearer $JOBPILOT_API_TOKEN" -X PATCH "$JOBPILOT_API
 
 Rules:
 
-- Default `reviewStatus = "pending"` — human must Approve.
-- `reviewStatus = "auto"` only when `confidence ≥ 0.95` AND `matchedAppId` is set. This is a UI hint only — no `StageEvent` is written here.
+- Default `reviewStatus = "pending"` - human must Approve.
+- `reviewStatus = "auto"` only when `confidence ≥ 0.95` AND `matchedAppId` is set. This is a UI hint only - no `StageEvent` is written here.
 
 ## Phase 5: Summary
 
