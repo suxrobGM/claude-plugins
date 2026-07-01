@@ -26,7 +26,7 @@ curl -fsS http://localhost:4102/healthz
 ```
 
 - Reachable → installed and running; skip to step 4.
-- Refused but `JobPilot.Terminal` is on `PATH` → installed, not running; tell the user to start it, then go to step 4.
+- Refused but `jobpilot` is on `PATH` → installed, not running; tell the user to start it, then go to step 4.
 - Not found → install it (step 3).
 
 ## 3. Install the terminal host
@@ -45,7 +45,7 @@ Confirm with the user before running a remote install script, then run the one-l
   curl -fsSL https://raw.githubusercontent.com/suxrobGM/jobpilot/main/apps/terminal/install.sh | bash
   ```
 
-It downloads the latest release into `~/.jobpilot` and adds it to `PATH`. After it finishes, start the host (`JobPilot.Terminal`), then continue.
+It downloads the latest release into `~/.jobpilot` and adds it to `PATH`. After it finishes, start the host (`jobpilot`), then continue.
 
 ## 4. Open the dashboard
 
