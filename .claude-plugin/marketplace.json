@@ -17,6 +17,17 @@
         "name": "Sukhrob Ilyosbekov",
         "email": "suxrobgm@gmail.com"
       }
+    },
+    {
+      "name": "jobpilot",
+      "source": "./plugins/jobpilot",
+      "description": "JobPilot — search job boards, tailor resumes, and auto-apply from Claude Code or Codex. Run the `setup` skill to install the local agent; campaigns run through the agent terminal in your JobPilot dashboard.",
+      "homepage": "https://github.com/suxrobgm/jobpilot",
+      "category": "productivity",
+      "author": {
+        "name": "Sukhrob Ilyosbekov",
+        "email": "suxrobgm@gmail.com"
+      }
     }
   ]
 }
