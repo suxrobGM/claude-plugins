@@ -1,5 +1,5 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "sukhrob-claude-plugins",
   "description": "Claude Code plugins by Sukhrob Ilyosbekov - pre-bundled, no install step.",
   "owner": {
