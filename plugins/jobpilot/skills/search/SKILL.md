@@ -13,7 +13,7 @@ Search a single board (picked by the user when launching the campaign) and rank 
 1. Follow `../shared/setup.md`.
 2. Parse and strip the flags; the rest is the free-text query.
    - `--board <domain>` - **required** (e.g. `--board linkedin.com`).
-   - `--max-jobs <N>` - optional cap on results to rank (default 15, max 100).
+   - `--max-jobs <N>` - optional cap on results to rank. Absent = unlimited (rank until the board is exhausted).
    - `--campaign <campaign-id>` - campaign to save results to (Phase 5). The web UI passes it; if absent, match the latest `source:"search"`, `status:"in_progress"` campaign on the query, else create one (a `source:"search"` create requires `config.resumeId` - default to the profile's `primaryResumeId`).
 3. Resolve the board:
 
@@ -33,8 +33,8 @@ Extract title/role, keywords, location, other preferences (e.g. "no startups", "
 1. `browser_navigate` to the resolved board's `searchUrl`.
 2. Follow `../shared/auth.md` to log in proactively.
 3. Fill the search fields and submit.
-4. Take a `browser_snapshot` narrowed to the results list (per `../shared/browser-tips.md`) and read `{ title, company, location, url, postedAt }` per row. If under `--max-jobs`, scroll/paginate per **Pagination & infinite scroll** in `../shared/browser-tips.md`.
-5. Take the first `--max-jobs` results (default 15); if fewer after paginating, take what's there. Only if a brief description is needed for the ranked table AND the listing preview didn't include one, delegate that row to the `job-worker` subagent with `mode:"score"` and `minMatchScore:0` (so nothing is auto-skipped - search keeps every result for review): it opens the posting, scores, and saves the Job row in isolated context, keeping the body out of this conversation. Such rows are already saved - exclude them from the Phase 5 bulk save. Otherwise skip the per-job nav and rank from the row to save tokens.
+4. Take a `browser_snapshot` narrowed to the results list (per `../shared/browser-tips.md`) and read `{ title, company, location, url, postedAt }` per row. While under `--max-jobs` (or always, when it's absent/unlimited), scroll/paginate per **Pagination & infinite scroll** in `../shared/browser-tips.md` until the cap is met or results run dry.
+5. Take the first `--max-jobs` results (or all of them when unlimited); if fewer after paginating, take what's there. Only if a brief description is needed for the ranked table AND the listing preview didn't include one, delegate that row to the `job-worker` subagent with `mode:"score"` and `minMatchScore:0` (so nothing is auto-skipped - search keeps every result for review): it opens the posting, scores, and saves the Job row in isolated context, keeping the body out of this conversation. Such rows are already saved - exclude them from the Phase 5 bulk save. Otherwise skip the per-job nav and rank from the row to save tokens.
 
 ## Phase 3: Exclude Previously Applied
 
