@@ -79,7 +79,7 @@ Only when the host was already running (step 2). Two parts update separately:
   - **Windows (PowerShell):** `Get-Process jobpilot -ErrorAction SilentlyContinue | Stop-Process -Force`
   - **macOS / Linux:** `pkill -x jobpilot` (exact name; avoid `-f`, which matches a shell in a `jobpilot` dir)
 
-- **Plugin skills** in Claude Code / Codex - update via the provider, not this skill: run `/plugin marketplace update sukhrob-claude-plugins` in Claude Code, or `codex plugin marketplace upgrade sukhrob-codex-plugins` in a shell for Codex, then re-run `setup`.
+- **Plugin skills** in Claude Code / Codex - update via the provider, not this skill: run `/plugin marketplace update sukhrob-claude-plugins` then `/reload-plugins` in Claude Code, or `codex plugin marketplace upgrade sukhrob-codex-plugins` in a shell for Codex (Codex loads it on the next session), then re-run `setup`.
 
 ## 6. Open the dashboard
 
