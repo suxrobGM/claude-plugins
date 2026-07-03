@@ -76,11 +76,10 @@ Only when the host was already running (step 2). Two parts update separately:
 - **Terminal host** - self-updates on restart. If the latest `v*` release (`https://api.github.com/repos/suxrobGM/jobpilot/releases`) is newer than the running `hostVersion` (`/healthz`), restart it and confirm the new version. Restarting ends the active session, so skip it when already current.
 
   Restart, then re-run step 4's launch + poll:
-
   - **Windows (PowerShell):** `Get-Process jobpilot -ErrorAction SilentlyContinue | Stop-Process -Force`
   - **macOS / Linux:** `pkill -x jobpilot` (exact name; avoid `-f`, which matches a shell in a `jobpilot` dir)
 
-- **Plugin skills** in Claude Code / Codex - update via the provider, not this skill: run `/plugin marketplace update sukhrob-claude-plugins` in Claude Code (or update from Codex's `/plugin` menu), then re-run `setup`.
+- **Plugin skills** in Claude Code / Codex - update via the provider, not this skill: run `/plugin marketplace update sukhrob-claude-plugins` in Claude Code, or `codex plugin marketplace upgrade sukhrob-codex-plugins` in a shell for Codex, then re-run `setup`.
 
 ## 6. Open the dashboard
 
