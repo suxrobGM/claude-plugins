@@ -1,11 +1,11 @@
 ---
 name: setup
-description: Install and start the JobPilot agent terminal on this machine, then open the dashboard. Run this first after installing the plugin in Claude Code or Codex.
+description: Install, start, or update the JobPilot agent terminal on this machine, then open the dashboard. Run this first after installing the plugin in Claude Code or Codex.
 ---
 
 # JobPilot Setup
 
-Onboarding entry point: ensure the local terminal host is installed and running, then send the user to the dashboard where the agent signs in. Safe to run without a token - do not defer to the auth gate in `../shared/setup.md`.
+Onboarding + update entry point: ensure the local terminal host is installed, current, and running, then send the user to the dashboard where the agent signs in. Safe to run without a token - do not defer to the auth gate in `../shared/setup.md`.
 
 ```bash
 JOBPILOT_WEB="${JOBPILOT_WEB:-https://jobpilot.suxrobgm.net}"
@@ -23,7 +23,7 @@ If `JOBPILOT_API_TOKEN` is set, this session is already running inside the agent
 curl -fsS http://localhost:4102/healthz
 ```
 
-- Reachable → already running; skip to step 5.
+- Reachable → already running; go to step 5 to check for updates.
 - Refused but installed (`jobpilot` on `PATH`, or `~/.jobpilot/jobpilot` exists) → go to step 4.
 - Not found → install it (step 3), then start it (step 4).
 
@@ -66,10 +66,23 @@ Then poll until it answers (up to ~30s):
 - **Windows (PowerShell):** `1..30 | %{ try { irm http://localhost:4102/healthz; break } catch { sleep 1 } }`
 - **macOS / Linux:** `for i in $(seq 1 30); do curl -fsS http://localhost:4102/healthz && break; sleep 1; done`
 
-- Healthy → continue to step 5.
+- Healthy → continue to step 6 (a fresh start self-updates on launch).
 - Still refused after the timeout → report the failure (and `~/.jobpilot/host.log` on macOS/Linux) and ask the user to start `jobpilot` manually.
 
-## 5. Open the dashboard
+## 5. Update to the latest release
+
+Only when the host was already running (step 2). Two parts update separately:
+
+- **Terminal host** - self-updates on restart. If the latest `v*` release (`https://api.github.com/repos/suxrobGM/jobpilot/releases`) is newer than the running `hostVersion` (`/healthz`), restart it and confirm the new version. Restarting ends the active session, so skip it when already current.
+
+  Restart, then re-run step 4's launch + poll:
+
+  - **Windows (PowerShell):** `Get-Process jobpilot -ErrorAction SilentlyContinue | Stop-Process -Force`
+  - **macOS / Linux:** `pkill -x jobpilot` (exact name; avoid `-f`, which matches a shell in a `jobpilot` dir)
+
+- **Plugin skills** in Claude Code / Codex - update via the provider, not this skill: run `/plugin marketplace update sukhrob-claude-plugins` in Claude Code (or update from Codex's `/plugin` menu), then re-run `setup`.
+
+## 6. Open the dashboard
 
 The agent launches and signs in from the dashboard - never from this session:
 
