@@ -67,7 +67,7 @@ Then poll until it answers (up to ~30s):
 - **macOS / Linux:** `for i in $(seq 1 30); do curl -fsS http://localhost:4102/healthz && break; sleep 1; done`
 
 - Healthy → continue to step 6 (a fresh start self-updates on launch).
-- Still refused after the timeout → report the failure (and `~/.jobpilot/host.log` on macOS/Linux) and ask the user to start `jobpilot` manually.
+- Still refused after the timeout → check the log (`~/.jobpilot/host.log` on macOS/Linux, console output on Windows). If it says port 4102 is already in use, a stale `jobpilot` instance is running - stop it (`Get-Process jobpilot | Stop-Process -Force` / `pkill -x jobpilot`) and retry step 4. Otherwise report the failure and ask the user to start `jobpilot` manually.
 
 ## 5. Update to the latest release
 
