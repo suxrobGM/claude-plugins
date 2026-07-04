@@ -5,7 +5,7 @@ description: Install, start, or update the JobPilot agent terminal on this machi
 
 # JobPilot Setup
 
-Onboarding + update entry point: ensure the local terminal host is installed, current, and running, then send the user to the dashboard where the agent signs in. Safe to run without a token - do not defer to the auth gate in `../shared/setup.md`.
+Onboarding + update entry point: ensure the local terminal host is installed, current, and running, then send the user to the dashboard where the agent signs in. Safe to run without a token - do not defer to any auth gate.
 
 ```bash
 JOBPILOT_WEB="${JOBPILOT_WEB:-https://jobpilot.suxrobgm.net}"
