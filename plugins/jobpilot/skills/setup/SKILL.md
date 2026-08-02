@@ -89,4 +89,4 @@ The agent launches and signs in from the dashboard - never from this session:
 
 ## What JobPilot does
 
-Searches job boards, tailors your resume per posting, and applies on your behalf - running on your own Claude/Codex subscription via the local agent. Your data lives in your hosted JobPilot account; the agent talks to it for you.
+Searches job boards, tailors your resume per posting, and applies on your behalf - running on your own Claude/Codex subscription via the local agent. Your data lives in your JobPilot account on the web; the agent talks to it for you.
