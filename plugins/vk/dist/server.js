@@ -26445,7 +26445,7 @@ function bootstrapContainer() {
     return;
   bootstrapped = true;
 }
-// src/common/logger/logger.ts
+// src/common/logger.ts
 var import_pino = __toESM(require_pino(), 1);
 import { mkdirSync, renameSync, statSync, unlinkSync } from "fs";
 import { join as join2 } from "path";
@@ -26460,7 +26460,7 @@ var peersPath = join(channelDir, "peers.json");
 var inboxDir = join(channelDir, "inbox");
 var logDir = join(channelDir, "log");
 
-// src/common/logger/logger.ts
+// src/common/logger.ts
 var level = process.env.LOG_LEVEL ?? "info";
 var isDev = false;
 var MAX_LOG_BYTES = 10 * 1024 * 1024;
@@ -26484,13 +26484,14 @@ function buildProdLogger() {
   mkdirSync(logDir, { recursive: true });
   const logFile = join2(logDir, "vk.log");
   rotateIfOversized(logFile);
-  const fileStream = import_pino.destination({ dest: logFile, sync: false, mkdir: true });
+  const fileStream = import_pino.destination({ dest: logFile, sync: true, mkdir: true });
   return import_pino.pino({ level, base: { plugin: "vk" } }, import_pino.multistream([{ stream: import_pino.destination(2) }, { stream: fileStream }]));
 }
 var logger = isDev ? import_pino.pino({
   level,
   transport: { target: "pino-pretty", options: { colorize: true, destination: 2 } }
 }) : buildProdLogger();
+
 // src/common/errors/http.error.ts
 class HttpError extends Error {
   statusCode;
@@ -61135,13 +61136,13 @@ var require_core$3 = /* @__PURE__ */ __commonJSMin((exports) => {
     warn() {},
     error() {}
   };
-  function getLogger(logger3) {
-    if (logger3 === false)
+  function getLogger(logger2) {
+    if (logger2 === false)
       return noLogs;
-    if (logger3 === undefined)
+    if (logger2 === undefined)
       return console;
-    if (logger3.log && logger3.warn && logger3.error)
-      return logger3;
+    if (logger2.log && logger2.warn && logger2.error)
+      return logger2;
     throw new Error("logger must implement log, warn and error methods");
   }
   const KEYWORD_NAME = /^[a-z_$][a-z0-9_$:-]*$/i;
@@ -64943,7 +64944,7 @@ var Server = class extends Protocol {
       ...ctx,
       mcpReq: {
         ...ctx.mcpReq,
-        log: (level2, data, logger3) => {
+        log: (level2, data, logger2) => {
           if (!this._capabilities.logging)
             return Promise.resolve();
           let threshold;
@@ -64960,7 +64961,7 @@ var Server = class extends Protocol {
             params: {
               level: level2,
               data,
-              logger: logger3
+              logger: logger2
             }
           });
         },
