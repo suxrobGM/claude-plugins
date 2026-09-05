@@ -1,0 +1,7 @@
+{
+  "name": "meatgg-bot",
+  "description": "meat.gg support channel — new tickets, complaints and public-chat mentions arrive as channel events.",
+  "version": "1.0.0",
+  "author": { "name": "Sukhrob Ilyosbekov", "email": "suxrobgm@gmail.com" },
+  "keywords": ["meat.gg", "support", "channel", "mcp"]
+}
