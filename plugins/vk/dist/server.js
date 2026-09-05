@@ -26453,12 +26453,12 @@ import { join as join2 } from "path";
 // src/state/paths.ts
 import { homedir } from "os";
 import { join } from "path";
-var root = join(homedir(), ".claude", "channels", "vk");
-var envPath = join(root, ".env");
-var accessPath = join(root, "access.json");
-var peersPath = join(root, "peers.json");
-var inboxDir = join(root, "inbox");
-var logDir = join(root, "log");
+var channelDir = join(homedir(), ".claude", "channels", "vk");
+var envPath = join(channelDir, ".env");
+var accessPath = join(channelDir, "access.json");
+var peersPath = join(channelDir, "peers.json");
+var inboxDir = join(channelDir, "inbox");
+var logDir = join(channelDir, "log");
 
 // src/common/logger/logger.ts
 var level = process.env.LOG_LEVEL ?? "info";
@@ -47817,8 +47817,8 @@ function encodeJSONPointerSegment(segment) {
   return segment.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 function extractDefs(ctx, schema) {
-  const root2 = ctx.seen.get(schema);
-  if (!root2)
+  const root = ctx.seen.get(schema);
+  if (!root)
     throw new Error("Unprocessed schema. This is a bug in Zod.");
   if (ctx.external && ctx.sharedDefsExtractedFor === ctx.external)
     return;
@@ -47847,7 +47847,7 @@ function extractDefs(ctx, schema) {
     }
     const uriPrefix = `#`;
     const defUriPrefix = `${uriPrefix}/${defsSegment}/`;
-    if (entry[1] === root2 && !entry[1].schema.id) {
+    if (entry[1] === root && !entry[1].schema.id) {
       return { ref: uriPrefix };
     }
     const defId = entry[1].schema.id ?? `__schema${ctx.counter++}`;
@@ -48017,8 +48017,8 @@ function foldIntersection(json) {
   assignProps(json, folded);
 }
 function finalize(ctx, schema) {
-  const root2 = ctx.seen.get(schema);
-  if (!root2)
+  const root = ctx.seen.get(schema);
+  if (!root)
     throw new Error("Unprocessed schema. This is a bug in Zod.");
   const flattenRef = (zodSchema) => {
     const seen = ctx.seen.get(zodSchema);
@@ -48127,7 +48127,7 @@ function finalize(ctx, schema) {
       throw new Error("Schema is missing an `id` property");
     result.$id = ctx.external.uri(id);
   }
-  assignProps(result, root2.defId ? root2.schema : root2.def ?? root2.schema);
+  assignProps(result, root.defId ? root.schema : root.def ?? root.schema);
   const rootMetaId = ctx.metadataRegistry.get(schema)?.id;
   if (rootMetaId !== undefined && result.id === rootMetaId)
     delete result.id;
@@ -59810,27 +59810,27 @@ var require_compile = /* @__PURE__ */ __commonJSMin((exports) => {
     }
   }
   exports.compileSchema = compileSchema;
-  function resolveRef2(root2, baseId, ref) {
+  function resolveRef2(root, baseId, ref) {
     var _a4;
     ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref);
-    const schOrFunc = root2.refs[ref];
+    const schOrFunc = root.refs[ref];
     if (schOrFunc)
       return schOrFunc;
-    let _sch = resolve.call(this, root2, ref);
+    let _sch = resolve.call(this, root, ref);
     if (_sch === undefined) {
-      const schema = (_a4 = root2.localRefs) === null || _a4 === undefined ? undefined : _a4[ref];
+      const schema = (_a4 = root.localRefs) === null || _a4 === undefined ? undefined : _a4[ref];
       const { schemaId } = this.opts;
       if (schema)
         _sch = new SchemaEnv({
           schema,
           schemaId,
-          root: root2,
+          root,
           baseId
         });
     }
     if (_sch === undefined)
       return;
-    return root2.refs[ref] = inlineOrCompile.call(this, _sch);
+    return root.refs[ref] = inlineOrCompile.call(this, _sch);
   }
   exports.resolveRef = resolveRef2;
   function inlineOrCompile(sch) {
@@ -59847,22 +59847,22 @@ var require_compile = /* @__PURE__ */ __commonJSMin((exports) => {
   function sameSchemaEnv(s1, s2) {
     return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
   }
-  function resolve(root2, ref) {
+  function resolve(root, ref) {
     let sch;
     while (typeof (sch = this.refs[ref]) == "string")
       ref = sch;
-    return sch || this.schemas[ref] || resolveSchema2.call(this, root2, ref);
+    return sch || this.schemas[ref] || resolveSchema2.call(this, root, ref);
   }
-  function resolveSchema2(root2, ref) {
+  function resolveSchema2(root, ref) {
     const p = this.opts.uriResolver.parse(ref);
     const refPath = (0, resolve_1._getFullPath)(this.opts.uriResolver, p);
-    let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root2.baseId, undefined);
-    if (Object.keys(root2.schema).length > 0 && refPath === baseId)
-      return getJsonPointer.call(this, p, root2);
+    let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root.baseId, undefined);
+    if (Object.keys(root.schema).length > 0 && refPath === baseId)
+      return getJsonPointer.call(this, p, root);
     const id = (0, resolve_1.normalizeId)(refPath);
     const schOrRef = this.refs[id] || this.schemas[id];
     if (typeof schOrRef == "string") {
-      const sch = resolveSchema2.call(this, root2, schOrRef);
+      const sch = resolveSchema2.call(this, root, schOrRef);
       if (typeof (sch === null || sch === undefined ? undefined : sch.schema) !== "object")
         return;
       return getJsonPointer.call(this, p, sch);
@@ -59880,7 +59880,7 @@ var require_compile = /* @__PURE__ */ __commonJSMin((exports) => {
       return new SchemaEnv({
         schema,
         schemaId,
-        root: root2,
+        root,
         baseId
       });
     }
@@ -59894,7 +59894,7 @@ var require_compile = /* @__PURE__ */ __commonJSMin((exports) => {
     "dependencies",
     "definitions"
   ]);
-  function getJsonPointer(parsedRef, { baseId, schema, root: root2 }) {
+  function getJsonPointer(parsedRef, { baseId, schema, root }) {
     var _a4;
     if (((_a4 = parsedRef.fragment) === null || _a4 === undefined ? undefined : _a4[0]) !== "/")
       return;
@@ -59912,13 +59912,13 @@ var require_compile = /* @__PURE__ */ __commonJSMin((exports) => {
     let env3;
     if (typeof schema != "boolean" && schema.$ref && !(0, util_1.schemaHasRulesButRef)(schema, this.RULES)) {
       const $ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schema.$ref);
-      env3 = resolveSchema2.call(this, root2, $ref);
+      env3 = resolveSchema2.call(this, root, $ref);
     }
     const { schemaId } = this.opts;
     env3 = env3 || new SchemaEnv({
       schema,
       schemaId,
-      root: root2,
+      root,
       baseId
     });
     if (env3.schema !== env3.root.schema)
@@ -60887,11 +60887,11 @@ var require_core$3 = /* @__PURE__ */ __commonJSMin((exports) => {
         keyRef = sch;
       if (sch === undefined) {
         const { schemaId } = this.opts;
-        const root2 = new compile_1.SchemaEnv({
+        const root = new compile_1.SchemaEnv({
           schema: {},
           schemaId
         });
-        sch = compile_1.resolveSchema.call(this, root2, keyRef);
+        sch = compile_1.resolveSchema.call(this, root, keyRef);
         if (!sch)
           return;
         this.refs[keyRef] = sch;
@@ -61237,20 +61237,20 @@ var require_ref = /* @__PURE__ */ __commonJSMin((exports) => {
     code(cxt) {
       const { gen, schema: $ref, it } = cxt;
       const { baseId, schemaEnv: env3, validateName, opts, self: self2 } = it;
-      const { root: root2 } = env3;
-      if (($ref === "#" || $ref === "#/") && baseId === root2.baseId)
+      const { root } = env3;
+      if (($ref === "#" || $ref === "#/") && baseId === root.baseId)
         return callRootRef();
-      const schOrEnv = compile_1.resolveRef.call(self2, root2, baseId, $ref);
+      const schOrEnv = compile_1.resolveRef.call(self2, root, baseId, $ref);
       if (schOrEnv === undefined)
         throw new ref_error_1.default(it.opts.uriResolver, baseId, $ref);
       if (schOrEnv instanceof compile_1.SchemaEnv)
         return callValidate(schOrEnv);
       return inlineRefSchema(schOrEnv);
       function callRootRef() {
-        if (env3 === root2)
+        if (env3 === root)
           return callRef(cxt, validateName, env3, env3.$async);
-        const rootName = gen.scopeValue("root", { ref: root2 });
-        return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root2, root2.$async);
+        const rootName = gen.scopeValue("root", { ref: root });
+        return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root, root.$async);
       }
       function callValidate(sch) {
         callRef(cxt, getValidate(cxt, sch), sch, sch.$async);
@@ -63077,12 +63077,12 @@ var require_dynamicAnchor = /* @__PURE__ */ __commonJSMin((exports) => {
   exports.dynamicAnchor = dynamicAnchor;
   function _getValidate(cxt) {
     const { schemaEnv, schema, self: self2 } = cxt.it;
-    const { root: root2, baseId, localRefs, meta: meta3 } = schemaEnv.root;
+    const { root, baseId, localRefs, meta: meta3 } = schemaEnv.root;
     const { schemaId } = self2.opts;
     const sch = new compile_1.SchemaEnv({
       schema,
       schemaId,
-      root: root2,
+      root,
       baseId,
       localRefs,
       meta: meta3
@@ -77175,7 +77175,227 @@ var runtimeController = new Elysia({ name: "runtime", tags: ["Runtime"] }).get("
   detail: { summary: "Process-runtime status snapshot." }
 });
 
+// src/setup.ts
+import { chmodSync, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync } from "fs";
+import { join as join5, resolve as resolve2 } from "path";
+
+// src/vps.ts
+import { existsSync } from "fs";
+import { homedir as homedir2 } from "os";
+import { join as join4, resolve } from "path";
+var SESSION = "vk";
+function pluginRoot() {
+  let dir = import.meta.dir;
+  for (let up = 0;up < 5; up += 1) {
+    if (existsSync(join4(dir, ".claude-plugin", "plugin.json"))) {
+      return dir;
+    }
+    dir = resolve(dir, "..");
+  }
+  return resolve(import.meta.dir, "..");
+}
+function resolveWorkdir(argv) {
+  return resolve(argv.find((arg) => !arg.startsWith("--")) ?? join4(homedir2(), "bots", SESSION));
+}
+function respawnPath(workdir) {
+  return join4(workdir, "respawn.sh");
+}
+function installedFiles(workdir) {
+  return [
+    { name: "respawn.sh", dest: respawnPath(workdir), mode: 493 },
+    { name: "CLAUDE.md", dest: join4(workdir, "CLAUDE.md") },
+    { name: "settings.json", dest: join4(workdir, ".claude", "settings.json") }
+  ];
+}
+function renderTemplate(name, template, workdir) {
+  if (name !== "respawn.sh") {
+    return template;
+  }
+  return template.replace(/^session=.*$/m, `session=${SESSION}`).replace(/^workdir=.*$/m, `workdir=${workdir}`);
+}
+function run(cmd, stdin) {
+  try {
+    const result = Bun.spawnSync(cmd, {
+      stdin: stdin === undefined ? undefined : new TextEncoder().encode(stdin),
+      stdout: "pipe",
+      stderr: "pipe"
+    });
+    return { ok: result.exitCode === 0, stdout: new TextDecoder().decode(result.stdout) };
+  } catch {
+    return { ok: false, stdout: "" };
+  }
+}
+function hasCommand(name) {
+  return run(["sh", "-c", `command -v ${name}`]).ok;
+}
+function cronLines(workdir) {
+  const respawn = respawnPath(workdir);
+  return [
+    `*/5 * * * * ${respawn}`,
+    `0 */6 * * * tmux kill-session -t ${SESSION} 2>/dev/null; ${respawn}`
+  ];
+}
+function currentCrontab() {
+  const { ok, stdout } = run(["crontab", "-l"]);
+  return ok ? stdout.split(`
+`).filter((line) => line.trim() !== "") : [];
+}
+function writeCrontab(lines) {
+  return run(["crontab", "-"], `${lines.join(`
+`)}
+`).ok;
+}
+function installCron(workdir) {
+  const respawn = respawnPath(workdir);
+  const kept = currentCrontab().filter((line) => !line.includes(respawn));
+  return writeCrontab([...kept, ...cronLines(workdir)]);
+}
+function removeCron(workdir) {
+  const respawn = respawnPath(workdir);
+  const current = currentCrontab();
+  const kept = current.filter((line) => !line.includes(respawn));
+  if (kept.length === current.length) {
+    return true;
+  }
+  return writeCrontab(kept);
+}
+function stopSession() {
+  return run(["tmux", "kill-session", "-t", SESSION]).ok;
+}
+function sessionRunning() {
+  return run(["tmux", "has-session", "-t", SESSION]).ok;
+}
+
+// src/setup.ts
+var PLUGIN_ROOT = pluginRoot();
+var TEMPLATES = join5(PLUGIN_ROOT, "deploy");
+function pluginVersion() {
+  try {
+    const manifest = readFileSync2(join5(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf8");
+    return JSON.parse(manifest).version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+function write(path, content, mode) {
+  mkdirSync2(resolve2(path, ".."), { recursive: true });
+  writeFileSync(path, content, "utf8");
+  if (mode !== undefined) {
+    try {
+      chmodSync(path, mode);
+    } catch {}
+  }
+}
+function install(name, dest, workdir, mode) {
+  const template = renderTemplate(name, readFileSync2(join5(TEMPLATES, name), "utf8"), workdir);
+  if (existsSync2(dest) && readFileSync2(dest, "utf8") === template) {
+    return false;
+  }
+  write(dest, template, mode);
+  return true;
+}
+function envTemplate() {
+  for (const candidate of [".env.example", join5("server", ".env.example")]) {
+    const path = join5(PLUGIN_ROOT, candidate);
+    if (existsSync2(path)) {
+      return readFileSync2(path, "utf8");
+    }
+  }
+  return `VK_TOKEN=
+PORT=6060
+LOG_LEVEL=info
+`;
+}
+function runSetup(argv) {
+  const workdir = resolveWorkdir(argv);
+  if (!existsSync2(TEMPLATES)) {
+    console.error(`error: templates not found at ${TEMPLATES}`);
+    process.exit(1);
+  }
+  console.log(`claude-vk ${pluginVersion()}`);
+  console.log(`
+session workdir: ${workdir}`);
+  let changed = false;
+  for (const { name, dest, mode } of installedFiles(workdir)) {
+    const written = install(name, dest, workdir, mode);
+    changed ||= written;
+    console.log(`  ${written ? "wrote    " : "unchanged"}  ${dest}`);
+  }
+  console.log(`
+channel config: ${channelDir}`);
+  mkdirSync2(channelDir, { recursive: true });
+  const envExists = existsSync2(envPath);
+  if (!envExists) {
+    write(envPath, envTemplate(), 384);
+  }
+  console.log(`  ${envExists ? "kept     " : "wrote    "}  ${envPath}`);
+  if (hasCommand("crontab")) {
+    console.log(installCron(workdir) ? `
+scheduled: respawn every 5 min, fresh context every 6h` : `
+could not edit the crontab; add the lines from the README by hand`);
+  }
+  if (!envExists) {
+    console.log(`
+still to do:`);
+    console.log(`  1. put the VK community token in ${envPath}`);
+    console.log(`  2. cd ${workdir} && claude   ->   /login, then /plugin install vk@claude-vk`);
+    console.log(`  3. ${respawnPath(workdir)}`);
+    console.log(`
+the bot DMs a pairing code on first inbound message; finish with /vk:access.`);
+    return;
+  }
+  if (changed || !sessionRunning()) {
+    console.log(`
+start or restart the session:`);
+    console.log(`  tmux kill-session -t ${SESSION} 2>/dev/null; ${respawnPath(workdir)}`);
+  }
+}
+
+// src/uninstall.ts
+import { existsSync as existsSync3, rmdirSync, rmSync } from "fs";
+import { join as join6 } from "path";
+function runUninstall(argv) {
+  const all = argv.includes("--all");
+  const workdir = resolveWorkdir(argv);
+  if (hasCommand("tmux")) {
+    console.log(stopSession() ? `stopped session ${SESSION}` : `no session ${SESSION} running`);
+  }
+  if (hasCommand("crontab")) {
+    console.log(removeCron(workdir) ? "removed the cron schedule" : "could not edit the crontab");
+  }
+  for (const { dest } of installedFiles(workdir)) {
+    if (existsSync3(dest)) {
+      rmSync(dest);
+      console.log(`  removed  ${dest}`);
+    }
+  }
+  for (const dir of [join6(workdir, ".claude"), workdir]) {
+    try {
+      rmdirSync(dir);
+      console.log(`  removed  ${dir}`);
+    } catch {}
+  }
+  if (all) {
+    rmSync(channelDir, { recursive: true, force: true });
+    console.log(`  removed  ${channelDir}`);
+  } else if (existsSync3(channelDir)) {
+    console.log(`
+kept ${channelDir} (token, access, peers, logs); pass --all to remove it too`);
+  }
+  console.log(`
+still to do, if you are done with the bot:`);
+  console.log("  /plugin uninstall vk@claude-vk");
+}
+
 // src/app.ts
+if (process.argv[2] === "setup") {
+  runSetup(process.argv.slice(3));
+  process.exit(0);
+}
+if (process.argv[2] === "uninstall") {
+  runUninstall(process.argv.slice(3));
+  process.exit(0);
+}
 validateEnv();
 bootstrapContainer();
 await instance.resolve(AccessStore).init();
