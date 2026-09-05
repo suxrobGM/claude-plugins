@@ -19,6 +19,17 @@
       }
     },
     {
+      "name": "meatgg-bot",
+      "source": "./plugins/meatgg-bot",
+      "description": "Live support desk for meat.gg, a Counter-Strike 2 community site. New tickets, player complaints and public-chat mentions arrive in a running Claude Code session, which reads the full thread and replies through a permissioned MCP server.",
+      "homepage": "https://meat.gg",
+      "category": "communication",
+      "author": {
+        "name": "Sukhrob Ilyosbekov",
+        "email": "suxrobgm@gmail.com"
+      }
+    },
+    {
       "name": "jobpilot",
       "source": "./plugins/jobpilot",
       "description": "JobPilot - search job boards, tailor resumes, and auto-apply from Claude Code or Codex. Run the `setup` skill to install the local agent; campaigns run through the agent terminal in your JobPilot dashboard.",
