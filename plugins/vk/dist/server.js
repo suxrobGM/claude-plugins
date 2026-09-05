@@ -76395,7 +76395,8 @@ function parsePayloadVerdict(payload) {
 }
 
 // src/modules/permission-relay/permission-relay.service.ts
-var PENDING_TTL_MS = 10 * 60 * 1000;
+var PENDING_TTL_MIN = 10;
+var PENDING_TTL_MS = PENDING_TTL_MIN * 60000;
 
 class PermissionRelayService {
   messaging;
@@ -76414,7 +76415,6 @@ class PermissionRelayService {
     this.notifier = notifier;
   }
   async handleRequest(params) {
-    this.sweepExpired();
     const activator = this.findFirstDmActivator();
     if (!activator) {
       logger.warn({ request_id: params.request_id }, "permission relay: no paired DM in access.json; cannot route");
@@ -76429,14 +76429,19 @@ class PermissionRelayService {
       await this.notifier?.warn(`permission relay: failed to DM prompt for ${params.request_id} (${result.code}) \u2014 using terminal prompt`);
       return;
     }
-    this.pending.set(params.request_id, {
-      request_id: params.request_id,
+    this.forget(params.request_id);
+    const requestId = params.request_id;
+    const timer = setTimeout(() => {
+      this.expire(requestId);
+    }, PENDING_TTL_MS);
+    timer.unref();
+    this.pending.set(requestId, {
       from_id: activator.from_id,
       peer_id: activator.peer_id,
       tool_name: params.tool_name,
-      created_at: Date.now()
+      timer
     });
-    logger.info({ peer_id: activator.peer_id, request_id: params.request_id }, "permission relay: prompt DM sent");
+    logger.info({ peer_id: activator.peer_id, request_id: requestId }, "permission relay: prompt DM sent");
   }
   async tryResolveVerdict(msg) {
     const verdict = parsePayloadVerdict(msg.payload);
@@ -76446,32 +76451,55 @@ class PermissionRelayService {
       await this.notifier?.warn("permission verdict received in group chat ignored \u2014 verdicts must come from DMs");
       return true;
     }
-    const pending = this.pending.get(verdict.request_id);
+    const pending = this.forget(verdict.request_id);
     if (!pending) {
       return true;
     }
     if (msg.from_id !== pending.from_id) {
       await this.notifier?.warn(`permission verdict for ${verdict.request_id} from non-originating user ignored`);
-      this.pending.delete(verdict.request_id);
       return true;
     }
+    await this.emitVerdict(verdict.request_id, verdict.behavior);
+    return true;
+  }
+  async expire(requestId) {
+    const pending = this.forget(requestId);
+    if (!pending)
+      return;
+    logger.warn({ request_id: requestId, tool_name: pending.tool_name }, "permission relay: prompt unanswered; auto-denying to unblock the session");
+    await this.emitVerdict(requestId, "deny");
+    await this.notifier?.warn(`permission prompt ${requestId} (${pending.tool_name}) went unanswered for ${String(PENDING_TTL_MIN)}m and was auto-denied`);
+    const result = await this.messaging.send({
+      peer_id: pending.peer_id,
+      text: `\u231B No answer for ${pending.tool_name} \u2014 auto-denied so the bot can keep going.`
+    });
+    if (!result.ok) {
+      logger.warn({ peer_id: pending.peer_id, request_id: requestId, code: result.code }, "permission relay: failed to DM timeout notice");
+    }
+  }
+  async emitVerdict(requestId, behavior) {
     const mcp = this.mcp;
     if (!mcp) {
-      logger.error({ request_id: verdict.request_id }, "permission relay: mcp handle missing; cannot emit verdict");
-      return true;
+      logger.error({ request_id: requestId }, "permission relay: mcp handle missing; cannot emit verdict");
+      return;
     }
     try {
       await mcp.server.notification({
         method: "notifications/claude/channel/permission",
-        params: { request_id: verdict.request_id, behavior: verdict.behavior }
+        params: { request_id: requestId, behavior }
       });
-      logger.info({ request_id: verdict.request_id, behavior: verdict.behavior }, "permission verdict relayed to Claude");
+      logger.info({ request_id: requestId, behavior }, "permission verdict relayed to Claude");
     } catch (err) {
-      logger.error({ err, request_id: verdict.request_id }, "failed to emit permission verdict");
-    } finally {
-      this.pending.delete(verdict.request_id);
+      logger.error({ err, request_id: requestId }, "failed to emit permission verdict");
     }
-    return true;
+  }
+  forget(requestId) {
+    const pending = this.pending.get(requestId);
+    if (!pending)
+      return null;
+    clearTimeout(pending.timer);
+    this.pending.delete(requestId);
+    return pending;
   }
   findFirstDmActivator() {
     const chats = this.access.get().chats;
@@ -76486,14 +76514,6 @@ class PermissionRelayService {
       return { peer_id: peerId, from_id: peerId };
     }
     return null;
-  }
-  sweepExpired() {
-    const cutoff = Date.now() - PENDING_TTL_MS;
-    for (const [id, p2] of this.pending) {
-      if (p2.created_at < cutoff) {
-        this.pending.delete(id);
-      }
-    }
   }
 }
 PermissionRelayService = __legacyDecorateClassTS([
