@@ -6430,7 +6430,7 @@ var lastSeenPath = join(channelDir, "last-seen.json");
 var logPath = join(channelDir, "meatgg-bot.log");
 
 // src/common/logger/logger.ts
-var destination = import_pino.default.destination({ dest: logPath, mkdir: true, sync: false });
+var destination = import_pino.default.destination({ dest: logPath, mkdir: true, sync: true });
 var logger = import_pino.default({ level: process.env.LOG_LEVEL ?? "info", base: { plugin: "meatgg-bot" } }, destination);
 
 // src/env.ts
