@@ -13,6 +13,9 @@ allowed-tools:
 bun run ${CLAUDE_PLUGIN_ROOT}/dist/server.js uninstall
 ```
 
+If that is denied, this session is running in the bot's own working directory, whose installed
+policy denies `Bash(bun *)`. Give the user the command to run in a plain shell instead.
+
 Stops the tmux session, removes its cron entries and deletes `~/bots/meatgg/`. The channel
 config — the API key, settings and logs in `~/.claude/channels/meatgg/` — is kept unless you
 pass `--all`.

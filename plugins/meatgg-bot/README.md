@@ -119,9 +119,10 @@ whole session directory: the tmux respawn script, the permission allowlist, the 
 the `.mcp.json` registering the `meatgg` server, plus an `.env` to fill in and the cron schedule.
 `uninstall` reverses it, with `--all` to drop the channel config and key too.
 
-Re-run setup after a plugin update. The plugin owns those files and rewrites them, so change the
-templates in [deploy/](deploy) and ship a new version rather than patching the installed copy.
-The `.env` is never touched once it exists.
+You only run setup once. `respawn.sh` reinstalls from the newest installed plugin before every
+spawn, so an update reaches the box on its own. The plugin owns those files and rewrites them, so
+change the templates in [deploy/](deploy) and ship a new version rather than patching the
+installed copy. The `.env` is never touched once it exists.
 
 Full walkthrough: [deploy/README.md](deploy/README.md).
 

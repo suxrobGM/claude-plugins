@@ -16,9 +16,10 @@ bun run ${CLAUDE_PLUGIN_ROOT}/dist/server.js setup
 ```
 
 It writes into `~/bots/vk/` (pass a path for another directory) and `~/.claude/channels/vk/`,
-then schedules the respawn cron. Re-run it after a plugin update: the plugin owns those files
-and rewrites them, so never patch an installed copy - change the template in `deploy/` and ship
-a new version. The `.env` is never touched once it exists.
+then schedules the respawn cron. This is a first-install step only, since the installed
+`respawn.sh` reinstalls before every spawn. The plugin owns those files and rewrites them, so
+never patch an installed copy - change the template in `deploy/` and ship a new version. The
+`.env` is never touched once it exists.
 
 The installed `respawn.sh` is pointed at the directory you passed, so a non-default workdir
 works without hand-editing the script.

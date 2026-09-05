@@ -1,6 +1,6 @@
 {
   "name": "vk",
   "description": "VK.com channel for Claude Code: a DM and group-chat bridge with message history, search, attachments, and remote permission relay.",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "keywords": ["vk", "messaging", "channel", "mcp"]
 }

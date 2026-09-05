@@ -77165,7 +77165,7 @@ var runtimeController = new Elysia({ name: "runtime", tags: ["Runtime"] }).get("
 });
 
 // src/setup.ts
-import { chmodSync, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync } from "fs";
+import { chmodSync, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, renameSync as renameSync2, writeFileSync } from "fs";
 import { join as join5, resolve as resolve2 } from "path";
 
 // src/vps.ts
@@ -77268,12 +77268,14 @@ function pluginVersion() {
 }
 function write(path, content, mode) {
   mkdirSync2(resolve2(path, ".."), { recursive: true });
-  writeFileSync(path, content, "utf8");
+  const temp = `${path}.tmp`;
+  writeFileSync(temp, content, "utf8");
   if (mode !== undefined) {
     try {
-      chmodSync(path, mode);
+      chmodSync(temp, mode);
     } catch {}
   }
+  renameSync2(temp, path);
 }
 function install(name, dest, workdir, mode) {
   const template = renderTemplate(name, readFileSync2(join5(TEMPLATES, name), "utf8"), workdir);

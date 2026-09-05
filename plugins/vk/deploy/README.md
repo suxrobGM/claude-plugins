@@ -19,7 +19,8 @@ Run these in a Claude Code session on the VPS that has the plugin loaded.
 4. **Pair.** The bot DMs a 6-character code on the first inbound message. Finish with
    `/vk:access pair <code>`.
 
-Re-run `/vk:setup` after every plugin update. It never touches your `.env` once it exists.
+You only run `/vk:setup` once: the installed `respawn.sh` reinstalls before every spawn, so a
+plugin update lands by itself. It never touches your `.env` once it exists.
 
 ## What setup installs
 

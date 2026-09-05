@@ -35,8 +35,8 @@ subscription account (channels are not available on API-key auth):
 /plugin install meatgg-bot@sukhrob-claude-plugins
 ```
 
-That lands in `~/.claude/plugins/marketplaces/**/plugins/meatgg-bot`, which is the `<plugin>`
-path used below.
+That lands in `~/.claude/plugins/cache/sukhrob-claude-plugins/meatgg-bot/<version>`, which is the
+`<plugin>` path used below. The version is part of the path, so it changes with every update.
 
 Publishing a new version from this repo is `bun run sync:plugin`, which builds `dist/server.js`
 and copies the plugin into the marketplace checkout for you to commit and push there.
@@ -46,15 +46,23 @@ the plugin `meatgg-bot@meat-app`, and `respawn.sh` launches the marketplace name
 
 ## 3. Run setup
 
-`/meatgg-bot:setup` from that session, or from any shell on the VPS:
+From any shell on the VPS:
 
 ```bash
 bun run <plugin>/dist/server.js setup             # installs into ~/bots/meatgg
 bun run <plugin>/dist/server.js setup ~/bots/alt  # or another directory
 ```
 
+`/meatgg-bot:setup` does the same from a Claude Code session, but **not one running in
+`~/bots/meatgg`**. The policy installed there denies `Bash(bun *)`, a deny outranks a skill's
+`allowed-tools`, and the installer is a `bun run`. Run it from `~` or from a plain shell.
+
 Writes the four files above, creates `~/.claude/channels/meatgg/.env`, and installs the cron
-schedule. **Re-run it after every plugin update.** Your `.env` is never touched once it exists.
+schedule. Your `.env` is never touched once it exists.
+
+**You only run this once.** From here on `respawn.sh` reinstalls from the newest installed plugin
+before every spawn, so a plugin update lands by itself within 5 minutes, or at the next 6-hourly
+restart. Nothing on the box needs the version-carrying plugin path typed again.
 
 ## 4. Add the API key
 

@@ -33696,7 +33696,7 @@ EventStreamService = __legacyDecorateClassTS([
 ], EventStreamService);
 
 // src/setup.ts
-import { chmodSync, existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync as readFileSync2, renameSync, writeFileSync } from "fs";
 import { join as join3, resolve as resolve2 } from "path";
 
 // src/vps.ts
@@ -33783,12 +33783,14 @@ function pluginVersion() {
 }
 function write(path, content, mode) {
   mkdirSync(resolve2(path, ".."), { recursive: true });
-  writeFileSync(path, content, "utf8");
+  const temp = `${path}.tmp`;
+  writeFileSync(temp, content, "utf8");
   if (mode !== undefined) {
     try {
-      chmodSync(path, mode);
+      chmodSync(temp, mode);
     } catch {}
   }
+  renameSync(temp, path);
 }
 function install(name, dest, mode) {
   const template = readFileSync2(join3(TEMPLATES, name), "utf8");

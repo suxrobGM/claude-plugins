@@ -15,9 +15,14 @@ Run the plugin's installer:
 bun run ${CLAUDE_PLUGIN_ROOT}/dist/server.js setup
 ```
 
+If that is denied, this session is running in the bot's own working directory, whose installed
+policy denies `Bash(bun *)` and outranks this skill's `allowed-tools`. Say so, and give the user
+the command to run in a plain shell instead. Do not try to work around the deny.
+
 It writes into `~/bots/meatgg/` (pass a path for another directory) and
-`~/.claude/channels/meatgg/`. Re-run it after a plugin update: the plugin owns those files and
-rewrites them, so never patch an installed copy — change the template and ship a new version.
+`~/.claude/channels/meatgg/`. This is a first-install step only: the installed `respawn.sh`
+reinstalls before every spawn, so later plugin updates need no re-run. The plugin owns those
+files, so never patch an installed copy, change the template and ship a new version instead.
 The `.env` is never touched once it exists.
 
 Then relay its "still to do" list to the user, and offer to:
