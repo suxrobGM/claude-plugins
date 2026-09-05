@@ -16,6 +16,7 @@ Then pick a plugin from the list below.
 | --- | --- | --- |
 | [`vk`](./plugins/vk) | VK.com channel - DMs, group chats, message history, attachments, remote permission relay. | [suxrobgm/claude-vk](https://github.com/suxrobgm/claude-vk) |
 | [`jobpilot`](./plugins/jobpilot) | Job-search agent - search boards, tailor resumes, auto-apply. Run `setup` to install the local agent. | [suxrobgm/jobpilot](https://github.com/suxrobgm/jobpilot) |
+| [`meatgg-bot`](./plugins/meatgg-bot) | meat.gg support channel - new tickets, complaints and public-chat mentions arrive as channel events. | meat.gg monorepo (`apps/bot`) |
 
 Install with `/plugin install <name>@sukhrob-claude-plugins`.
 

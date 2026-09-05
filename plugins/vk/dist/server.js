@@ -75657,32 +75657,20 @@ var ready = false;
 function isMcpReady() {
   return ready;
 }
-var INSTRUCTIONS = `VK channel plugin \u2014 bridges VK.com DMs and group chats into this session.
+var INSTRUCTIONS = `VK channel plugin: bridges VK.com DMs and group chats into this session.
 
 Inbound messages arrive as <channel source="vk" ...> blocks with these attributes:
-  peer_id                  \u2014 pass back to tools to address the conversation
-  from_id, from_name       \u2014 the VK user who sent the message
-  is_group_chat            \u2014 "true" for multi-user chats, "false" for DMs
-  conversation_message_id  \u2014 per-peer message id (cmid); use for edit/delete/react/reply
-  mentioned                \u2014 "true" if the bot was @-mentioned or addressed by name
-  reply_to_bot             \u2014 "true" if the message quote-replies one of the bot's messages
+  peer_id                  pass back to tools to address the conversation
+  from_id, from_name       the VK user who sent the message
+  is_group_chat            "true" for multi-user chats, "false" for DMs
+  conversation_message_id  per-peer message id (cmid); use for edit/delete/react/reply
+  mentioned                "true" if the bot was @-mentioned or addressed by name
+  reply_to_bot             "true" if the message quote-replies one of the bot's messages
 
 Reply rules:
   - DMs: respond normally.
   - Group chats with mentioned="false" and reply_to_bot="false": stay silent unless
     the user explicitly asks you to chime in.
-
-Tools:
-  send_message              \u2014 post a reply (always pass peer_id from the tag)
-  edit_message              \u2014 edit one of your own messages (24h window)
-  delete_message            \u2014 delete one of your own messages (24h window)
-  react                     \u2014 add a reaction by reaction_id (VK sendReaction)
-  mark_read                 \u2014 mark the conversation read up to a cmid
-  upload_attachment         \u2014 upload a file; returns a vk_ref to splice into a follow-up send
-  get_conversation_history  \u2014 fetch recent messages in a peer
-  search_messages           \u2014 search across conversations
-  get_user_info             \u2014 resolve VK user metadata (cached)
-  ping                      \u2014 connectivity probe; works without a VK token
 `;
 function startMcpServer() {
   const server = new McpServer({ name: "vk", version: "1.0.0" }, { capabilities: buildCapabilities(), instructions: INSTRUCTIONS });
