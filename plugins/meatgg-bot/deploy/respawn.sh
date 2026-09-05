@@ -9,7 +9,16 @@ export NVM_DIR="$HOME/.nvm"
 
 session=meatgg
 workdir=/root/bots/meatgg
-launch='exec claude --permission-mode dontAsk --dangerously-load-development-channels plugin:meatgg-bot@meat-app'
+
+# .mcp.json expands ${MEATGG_API_KEY} into the meatgg server's Authorization header.
+env_file="$HOME/.claude/channels/meatgg/.env"
+if [ -f "$env_file" ]; then
+  set -a
+  . "$env_file"
+  set +a
+fi
+
+launch='exec claude --permission-mode dontAsk --dangerously-load-development-channels plugin:meatgg-bot@sukhrob-claude-plugins'
 
 # Alive -> done. On a crash the pane (Claude) exits and tmux drops the session.
 tmux has-session -t "$session" 2>/dev/null && exit 0

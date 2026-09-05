@@ -33710,7 +33710,8 @@ function installedFiles(workdir) {
   return [
     { name: "respawn.sh", dest: respawnPath(workdir), mode: 493 },
     { name: "CLAUDE.md", dest: join2(workdir, "CLAUDE.md") },
-    { name: "settings.json", dest: join2(workdir, ".claude", "settings.json") }
+    { name: "settings.json", dest: join2(workdir, ".claude", "settings.json") },
+    { name: "mcp.json", dest: join2(workdir, ".mcp.json") }
   ];
 }
 function run(cmd, stdin) {
@@ -33829,10 +33830,10 @@ could not edit the crontab; add the lines from the README by hand`);
     console.log(`
 still to do:`);
     console.log(`  1. put the API key in ${envPath}`);
-    console.log("  2. claude mcp add meatgg --scope user --transport http https://meat.gg/mcp \\");
-    console.log('       --header "Authorization: Bearer <the same key>"');
-    console.log(`  3. cd ${workdir} && claude   ->   /login, then /plugin install meatgg-bot@meat-app`);
-    console.log(`  4. ${respawnPath(workdir)}`);
+    console.log(`  2. cd ${workdir} && claude   ->   /login, then install the plugin:`);
+    console.log("       /plugin marketplace add https://github.com/suxrobgm/claude-plugins");
+    console.log("       /plugin install meatgg-bot@sukhrob-claude-plugins");
+    console.log(`  3. ${respawnPath(workdir)}`);
     console.log(`
 settings are optional; write ${settingsPath} to change topics or chat.`);
     return;
@@ -33877,8 +33878,7 @@ kept ${channelDir} (key, settings, logs); pass --all to remove it too`);
   }
   console.log(`
 still to do, if you are done with the bot:`);
-  console.log("  claude mcp remove meatgg --scope user");
-  console.log("  /plugin uninstall meatgg-bot@meat-app");
+  console.log("  /plugin uninstall meatgg-bot@sukhrob-claude-plugins");
 }
 
 // src/app.ts

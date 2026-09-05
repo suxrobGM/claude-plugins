@@ -21,6 +21,7 @@ Ask before passing `--all`: it deletes the API key with everything else, and the
 recovered from the machine afterwards. Pass a directory as the first argument if the session was
 installed somewhere other than `~/bots/meatgg`.
 
-Then relay the two steps it prints, which have to happen from a Claude Code session rather than
-a shell: `claude mcp remove meatgg --scope user` and `/plugin uninstall meatgg-bot@meat-app`.
-Mention that the ApiKey itself still exists in `/admin/api-keys` and should be revoked there.
+Then relay the step it prints, which has to happen from a Claude Code session rather than a
+shell: `/plugin uninstall meatgg-bot@sukhrob-claude-plugins` (`@meat-app` if it was installed
+from a repo checkout). Mention that the ApiKey itself still exists in `/admin/api-keys` and
+should be revoked there.

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "meatgg": {
+      "type": "http",
+      "url": "https://meat.gg/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MEATGG_API_KEY}"
+      }
+    }
+  }
+}
