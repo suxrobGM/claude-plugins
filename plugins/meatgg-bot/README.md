@@ -19,8 +19,10 @@ claude ── plugin:meatgg-bot ────────────┘   (event
 1. **Bun** and **Claude Code**, logged in with a claude.ai account. Channels do not work on
    API-key auth.
 2. **An ApiKey** from `/admin/api-keys`, owned by a human admin holding `VIEW_TICKETS` (that is
-   who `get_ticket` runs as). Scope it to `VIEW_TICKETS`, `MANAGE_TICKETS`, `VIEW_COMPLAINTS`,
-   `MANAGE_COMPLAINTS` and `DELETE_CHAT_MESSAGES`.
+   who `get_ticket` runs as). Scope it to the writes `MANAGE_TICKETS`, `MANAGE_COMPLAINTS`,
+   `DELETE_CHAT_MESSAGES` and the reads `VIEW_TICKETS`, `VIEW_COMPLAINTS`, `VIEW_USERS`,
+   `VIEW_PUNISHMENTS`, `VIEW_DROPS`, `VIEW_SUBSCRIPTIONS`, `VIEW_RULES`, `VIEW_SERVERS`,
+   `VIEW_SITE_SETTINGS`; unscoped tools are not listed to the bot at all.
 3. **The bot user**, seeded with an AdminProfile carrying `MANAGE_TICKETS` +
    `MANAGE_COMPLAINTS`. See [deploy/README.md](deploy/README.md) step 1.
 

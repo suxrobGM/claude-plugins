@@ -20,8 +20,12 @@ installed copy: change the template here and ship a new plugin version.
    `MANAGE_COMPLAINTS`. Without it the reply tools fail with "you can only reply to your own
    tickets".
 3. Mint an ApiKey owned by a **human admin holding `VIEW_TICKETS`**, since `get_ticket` runs as
-   the key's owner rather than as the bot. Scope it to `VIEW_TICKETS`, `MANAGE_TICKETS`,
-   `VIEW_COMPLAINTS`, `MANAGE_COMPLAINTS` and `DELETE_CHAT_MESSAGES`.
+   the key's owner rather than as the bot. Scope it to the writes `MANAGE_TICKETS`,
+   `MANAGE_COMPLAINTS`, `DELETE_CHAT_MESSAGES` and the reads the bot answers from:
+   `VIEW_TICKETS`, `VIEW_COMPLAINTS`, `VIEW_USERS`, `VIEW_PUNISHMENTS`, `VIEW_DROPS`,
+   `VIEW_SUBSCRIPTIONS`, `VIEW_RULES`, `VIEW_SERVERS`, `VIEW_SITE_SETTINGS`. The MCP server
+   lists only the tools the key has permission for, so a missing read scope silently removes
+   the lookup (ban appeals need `VIEW_USERS` + `VIEW_PUNISHMENTS`).
 
 ## 2. Install the plugin
 
