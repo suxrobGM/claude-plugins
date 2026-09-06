@@ -11,15 +11,10 @@ session=meatgg
 # Installed into the session directory, so its own location is the workdir.
 workdir="$(cd "$(dirname "$0")" && pwd)"
 
-# .mcp.json expands ${MEATGG_API_KEY} into the meatgg Authorization header.
+# .mcp.json expands ${MEATGG_API_KEY} into the meatgg Authorization header. Sourced inside the
+# pane: a session on an already-running tmux server gets the server's environment, not ours.
 env_file="$HOME/.claude/channels/meatgg/.env"
-if [ -f "$env_file" ]; then
-  set -a
-  . "$env_file"
-  set +a
-fi
-
-launch='exec claude --permission-mode dontAsk --dangerously-load-development-channels plugin:meatgg-bot@sukhrob-claude-plugins'
+launch="[ -f '$env_file' ] && { set -a; . '$env_file'; set +a; }; exec claude --permission-mode dontAsk --dangerously-load-development-channels plugin:meatgg-bot@sukhrob-claude-plugins"
 
 # Still alive -> nothing to do. A crash exits the pane and tmux drops the session.
 tmux has-session -t "$session" 2>/dev/null && exit 0

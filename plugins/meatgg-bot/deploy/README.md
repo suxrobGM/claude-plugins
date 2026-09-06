@@ -15,7 +15,7 @@ installed copy: change the template here and ship a new plugin version.
 
 ## 1. Prepare the site
 
-1. `bun run db:seed --only ai-bot` on prod. Creates the Джаб Джабич user.
+1. `bun run db:seed --only ai-bot` on prod. Creates the Жаб Жабыч user.
 2. In `/admin/admins`, give that user an AdminProfile with `MANAGE_TICKETS` and
    `MANAGE_COMPLAINTS`. Without it the reply tools fail with "you can only reply to your own
    tickets".
@@ -57,8 +57,8 @@ bun run <plugin>/dist/server.js setup ~/bots/alt  # or another directory
 `~/bots/meatgg`**. The policy installed there denies `Bash(bun *)`, a deny outranks a skill's
 `allowed-tools`, and the installer is a `bun run`. Run it from `~` or from a plain shell.
 
-Writes the four files above, creates `~/.claude/channels/meatgg/.env`, and installs the cron
-schedule. Your `.env` is never touched once it exists.
+Writes the four files above, creates `~/.claude/channels/meatgg/.env` and `settings.json`, and
+installs the cron schedule. Neither of those two is touched again once it exists.
 
 **You only run this once.** From here on `respawn.sh` reinstalls from the newest installed plugin
 before every spawn, so a plugin update lands by itself within 5 minutes, or at the next 6-hourly

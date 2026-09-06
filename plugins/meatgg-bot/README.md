@@ -81,7 +81,7 @@ MEATGG_API_KEY=<the ApiKey>
 LOG_LEVEL=info
 ```
 
-`settings.json` (optional; these are the defaults, so keep only what you change):
+`settings.json` (written by setup with these defaults; edit it and restart the session):
 
 ```jsonc
 {
@@ -90,7 +90,7 @@ LOG_LEVEL=info
     // `all` answers every message in the watched channels; `mention_only` waits to be addressed.
     "mode": "mention_only",
     "channelIds": [1],
-    "mentionNames": ["jabjabich", "джаб", "джабич"]
+    "mentionNames": ["jabjabich", "жаб", "жабыч", "ai"]
   },
   // Events replayed per topic after a reconnect, so an outage cannot flood one turn.
   "replayLimit": 5
