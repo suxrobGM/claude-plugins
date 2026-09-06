@@ -33390,6 +33390,10 @@ Support activity arrives as <channel source="plugin:meatgg-bot:meatgg-bot" ...> 
   replayed         "true" when it arrived while the feed was down, so it may be old
   severity         "warning" marks a feed problem, not user activity
 
+A reply exists only as a tool call. Text you write in the session reaches the operator and
+nobody else, so answering a block means posting it with the write named at the end of that
+block. Prose instead of the call is the same as staying silent.
+
 Answer with the meatgg MCP tools, never from memory:
   ticket.*      mcp__meatgg__get_ticket    then mcp__meatgg__reply_to_ticket
   complaint.*   mcp__meatgg__get_complaint then mcp__meatgg__reply_to_complaint
@@ -33460,6 +33464,16 @@ function buildHeader(event) {
       return `Chat message in channel ${event.data.channelId} from ${who}`;
   }
 }
+function buildAction(event) {
+  switch (event.topic) {
+    case "ticket":
+      return `To answer, call mcp__meatgg__reply_to_ticket with ticketId ${event.data.ticketId}.`;
+    case "complaint":
+      return `To answer, call mcp__meatgg__reply_to_complaint with complaintId ${event.data.complaintId}.`;
+    case "chat":
+      return `To answer, call mcp__meatgg__send_chat_message with channelId ${event.data.channelId}.`;
+  }
+}
 
 class ChannelNotifier {
   mcp;
@@ -33469,7 +33483,9 @@ class ChannelNotifier {
   async notify(event, replayed = false) {
     const content = `${buildHeader(event)}
 
-${event.preview}`;
+${event.preview}
+
+${buildAction(event)} Text you write in this session is not delivered to anyone.`;
     await this.send(content, buildMeta(event, replayed));
   }
   async warn(content) {
