@@ -12462,6 +12462,7 @@ var SettingsSchema = Type.Object({
       default: ["jabjabich", "\u0436\u0430\u0431", "\u0436\u0430\u0431\u044B\u0447", "ai"]
     })
   }, { default: {} }),
+  scope: Type.Union([Type.Literal("all"), Type.Literal("actionable")], { default: "all" }),
   replayLimit: Type.Number({ default: 5, minimum: 0 })
 });
 
@@ -12633,7 +12634,7 @@ still to do:`);
     console.log("       /plugin install meatgg-bot@sukhrob-claude-plugins");
     console.log(`  3. ${respawnPath(workdir)}`);
     console.log(`
-edit ${settingsPath} for topics, chat mode and mention names.`);
+edit ${settingsPath} for topics, scope, chat mode and mention names.`);
     return;
   }
   if (applied.some((row) => row.outcome === "wrote") || !sessionRunning()) {
@@ -33387,6 +33388,7 @@ Block attributes:
   message_id       the specific message, when the event is a reply
   subject, category, priority, target_steam_id   ticket and complaint details
   replayed         "true" when it arrived after a feed outage, so it may be old
+  scope            "actionable" when settings limit you to drop tickets and bugged bans
   severity         "warning" marks a feed problem, not a player
 
 Text you write in this session reaches nobody. A reply exists only as the tool call named at
@@ -33395,9 +33397,11 @@ the end of each block:
   complaint.*    mcp__meatgg__get_complaint, then mcp__meatgg__reply_to_complaint
   chat.message   mcp__meatgg__get_chat_messages, then mcp__meatgg__send_chat_message
 
-Reads and those three writes are yours. Every other write and the audit reads are denied by
-the session's permissions, and a denied tool still appears in the list. Writes are capped at
-20 per minute.`;
+Every read is yours, and so are these writes: the three replies above, mcp__meatgg__assign_ticket,
+mcp__meatgg__set_complaint_status, mcp__meatgg__retry_drop, mcp__meatgg__cancel_drop and
+mcp__meatgg__lift_bugged_ban. Denied: close_ticket, reopen_ticket, grant_drop, search_audit_logs,
+get_transactions, list_game_reports. A denied tool still appears in the list, so read this
+paragraph rather than calling one to find out. Writes are capped at 20 per minute.`;
 function startMcpServer() {
   const server = new McpServer({ name: "meatgg-bot", version: "1.0.0" }, { capabilities: CAPABILITIES, instructions: INSTRUCTIONS });
   registerStatusTool(server);
@@ -33406,10 +33410,11 @@ function startMcpServer() {
 }
 
 // src/modules/inbound/channel-notifier.ts
+var ACTIONABLE_NOTE = "Scope is actionable: act only if this is a drop you can reissue or a ban get_punishments flags bugged; otherwise do nothing at all.";
 function snakeCase(key) {
   return key.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
 }
-function buildMeta(event, replayed) {
+function buildMeta(event, replayed, scope) {
   const meta2 = {
     topic: event.topic,
     event: event.type,
@@ -33423,6 +33428,9 @@ function buildMeta(event, replayed) {
   }
   if (replayed) {
     meta2.replayed = "true";
+  }
+  if (scope === "actionable") {
+    meta2.scope = scope;
   }
   return meta2;
 }
@@ -33457,13 +33465,14 @@ class ChannelNotifier {
   constructor(mcp) {
     this.mcp = mcp;
   }
-  async notify(event, replayed = false) {
+  async notify(event, scope, replayed = false) {
+    const note = scope === "actionable" ? ` ${ACTIONABLE_NOTE}` : "";
     const content = `${buildHeader(event)}
 
 ${event.preview}
 
-${buildAction(event)} Text you write in this session is not delivered to anyone.`;
-    await this.send(content, buildMeta(event, replayed));
+${buildAction(event)}${note} Text you write in this session is not delivered to anyone.`;
+    await this.send(content, buildMeta(event, replayed, scope));
   }
   async warn(content) {
     await this.send(content, { severity: "warning" });
@@ -33604,12 +33613,31 @@ function mentionsBot(text, names) {
 }
 
 // src/modules/inbound/event-filter.ts
+var DROP_WORDS = /\u0434\u0440\u043E\u043F|drop|\u043A\u0435\u0439\u0441|case|\u0442\u0440\u0435\u0439\u0434|trade|\u043E\u0431\u043C\u0435\u043D/i;
+var BAN_WORDS = /\u0431\u0430\u043D|ban|\u0431\u043B\u043E\u043A|\u0440\u0430\u0437\u0431\u0430\u043D|unban|\u043F\u0440\u043E\u0432\u0435\u0440\u043A/i;
+var BAN_COMPLAINT_CATEGORIES = new Set(["unfair_ban", "other"]);
+function outOfScope(event) {
+  switch (event.type) {
+    case "ticket.created":
+    case "ticket.message":
+      return !DROP_WORDS.test(`${event.data.subject} ${event.preview}`);
+    case "complaint.created":
+      return !BAN_COMPLAINT_CATEGORIES.has(event.data.category) || !BAN_WORDS.test(event.preview);
+    case "complaint.message":
+      return !BAN_COMPLAINT_CATEGORIES.has(event.data.category);
+    case "chat.message":
+      return true;
+  }
+}
 function skipReason(event, settings) {
   if (event.author.isBot) {
     return "self-authored";
   }
   if (!settings.topics[event.topic]) {
     return "topic-disabled";
+  }
+  if (settings.scope === "actionable" && outOfScope(event)) {
+    return "out-of-scope";
   }
   if (event.type === "chat.message") {
     if (!settings.chat.channelIds.includes(event.data.channelId)) {
@@ -33639,12 +33667,13 @@ class EventHandler {
   async handle(event, replayed = false) {
     try {
       this.status.markEvent();
-      const reason = skipReason(event, this.settings.get());
+      const settings = this.settings.get();
+      const reason = skipReason(event, settings);
       if (reason) {
         logger.debug({ event: event.type, reason }, "event skipped");
         return;
       }
-      await this.notifier.notify(event, replayed);
+      await this.notifier.notify(event, settings.scope, replayed);
     } catch (err) {
       logger.error({ err, event: event.type }, "failed to handle event");
     }

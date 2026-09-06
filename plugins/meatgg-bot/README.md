@@ -20,11 +20,14 @@ claude ── plugin:meatgg-bot ────────────┘   (event
    API-key auth.
 2. **An ApiKey** from `/admin/api-keys`, owned by a human admin holding `VIEW_TICKETS` (that is
    who `get_ticket` runs as). Scope it to the writes `MANAGE_TICKETS`, `MANAGE_COMPLAINTS`,
-   `DELETE_CHAT_MESSAGES` and the reads `VIEW_TICKETS`, `VIEW_COMPLAINTS`, `VIEW_USERS`,
-   `VIEW_PUNISHMENTS`, `VIEW_DROPS`, `VIEW_SUBSCRIPTIONS`, `VIEW_RULES`, `VIEW_SERVERS`,
-   `VIEW_SITE_SETTINGS`; unscoped tools are not listed to the bot at all.
+   `MANAGE_DROPS`, `MANAGE_PUNISHMENTS`, `DELETE_CHAT_MESSAGES` and the reads `VIEW_TICKETS`,
+   `VIEW_COMPLAINTS`, `VIEW_USERS`, `VIEW_PUNISHMENTS`, `VIEW_DROPS`, `VIEW_SUBSCRIPTIONS`,
+   `VIEW_RULES`, `VIEW_SERVERS`, `VIEW_SITE_SETTINGS`; unscoped tools are not listed to the bot
+   at all.
 3. **The bot user**, seeded with an AdminProfile carrying `MANAGE_TICKETS` +
-   `MANAGE_COMPLAINTS`. See [deploy/README.md](deploy/README.md) step 1.
+   `MANAGE_COMPLAINTS`. Replies, `assign_ticket` and `set_complaint_status` all act as the bot
+   user rather than as the key's owner, so without that profile they fail. See
+   [deploy/README.md](deploy/README.md) step 1.
 
 ## Install
 
@@ -94,6 +97,9 @@ LOG_LEVEL=info
     "channelIds": [1],
     "mentionNames": ["jabjabich", "жаб", "жабыч", "ai"]
   },
+  // `actionable` limits the bot to tickets about drops and complaints about bans, and it stays
+  // silent unless a tool of its own settles the case (reissue, bugged-ban lift).
+  "scope": "all",
   // Events replayed per topic after a reconnect, so an outage cannot flood one turn.
   "replayLimit": 5
 }
