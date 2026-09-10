@@ -16,10 +16,10 @@ bun run ${CLAUDE_PLUGIN_ROOT}/dist/server.js uninstall
 Denied? Then this session runs in the bot's own working directory, whose policy denies
 `Bash(bun *)`. Give the user the command for a plain shell.
 
-Stops the tmux session, removes its cron entries and deletes `~/bots/meatgg/` (pass a
-directory if it was installed elsewhere). The channel config in `~/.claude/channels/meatgg/`,
-API key included, is kept unless you pass `--all`. Ask before `--all`: the key cannot be
-recovered from the machine afterwards.
+Stops the tmux session, removes its cron entries and deletes the plugin's files from
+`~/bots/meatgg/` (pass a directory if it was installed elsewhere). The operator's `.env`,
+settings and logs in `.state/` are kept unless you pass `--all`. Ask before `--all`: the key
+cannot be recovered from the machine afterwards.
 
 Relay the printed last step, which needs a Claude Code session rather than a shell:
 `/plugin uninstall meatgg-bot@sukhrob-claude-plugins` (`@meat-app` for a checkout install).

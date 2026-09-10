@@ -63,7 +63,8 @@ bun run <plugin>/dist/server.js setup ~/bots/alt  # or another directory
 `~/bots/meatgg`**. The policy installed there denies `Bash(bun *)`, a deny outranks a skill's
 `allowed-tools`, and the installer is a `bun run`. Run it from `~` or from a plain shell.
 
-Writes the four files above, creates `~/.claude/channels/meatgg/.env` and `settings.json`, and
+Writes the four files above, creates `~/bots/meatgg/.state/` (mode `700`) holding `.env` and
+`settings.json`, and
 installs the cron schedule. Neither of those two is touched again once it exists.
 
 **You only run this once.** From here on `respawn.sh` reinstalls from the newest installed plugin
@@ -72,10 +73,10 @@ restart. Nothing on the box needs the version-carrying plugin path typed again.
 
 ## 4. Add the API key
 
-Put the key from step 1 into `~/.claude/channels/meatgg/.env`:
+Put the key from step 1 into `~/bots/meatgg/.state/.env`:
 
 ```bash
-MEATGG_API_URL=https://meat.gg/api
+MEATGG_API_URL=https://meat.gg
 MEATGG_API_KEY=<the ApiKey>
 ```
 
@@ -127,6 +128,9 @@ bun run <plugin>/dist/server.js uninstall        # keeps the key, settings and l
 bun run <plugin>/dist/server.js uninstall --all  # removes those too
 ```
 
+`--all` removes `.state/` outright. The working directory itself is the Claude session's own
+project directory, so it is only removed when nothing else is left in it.
+
 Stops the session, drops the cron entries, deletes the installed files. `.mcp.json` goes with
 them, so the MCP server unregisters itself. One step is left for a Claude Code session:
 `/plugin uninstall meatgg-bot@sukhrob-claude-plugins`. The ApiKey still exists in
@@ -138,12 +142,12 @@ them, so the MCP server unregisters itself. One step is left for a Claude Code s
 `~/.local/bin` and `~/.bun/bin`; fix it if `which claude bun` differs.
 
 **The `meatgg` tools are missing, or every call 401s.** The key never reached the process. Check
-`MEATGG_API_KEY` in `~/.claude/channels/meatgg/.env`, and start the session with `respawn.sh`
-rather than a bare `claude`, since that is what exports it.
+`MEATGG_API_KEY` in `~/bots/meatgg/.state/.env`, and start the session with `respawn.sh` rather than a
+bare `claude`, since that is what exports it and `MEATGG_BOT_HOME`.
 
 **Never redirect Claude's output** (`>> log`, `| tee`). It flips to `--print` mode and exits on
 launch. Use `tmux pipe-pane` and rotate it. The plugin's own log is
-`~/.claude/channels/meatgg/meatgg-bot.log`.
+`~/bots/meatgg/.state/meatgg-bot.log`, private through the mode on `.state/`.
 
 **A prompt on every launch.** The dev-channels flag asks for confirmation each time and
 `respawn.sh` presses Enter for it. It goes away once the plugin is allowlisted and `--channels`

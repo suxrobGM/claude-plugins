@@ -8,28 +8,23 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1
 
 session=meatgg
-# Installed into the session directory, so its own location is the workdir.
 workdir="$(cd "$(dirname "$0")" && pwd)"
 
-# .mcp.json expands ${MEATGG_API_KEY} into the meatgg Authorization header. Sourced inside the
-# pane: a session on an already-running tmux server gets the server's environment, not ours.
-env_file="$HOME/.claude/channels/meatgg/.env"
-launch="[ -f '$env_file' ] && { set -a; . '$env_file'; set +a; }; exec claude --permission-mode dontAsk --dangerously-load-development-channels plugin:meatgg-bot@sukhrob-claude-plugins"
+# Existing tmux servers do not inherit environment changes, so export inside the pane.
+env_file="$workdir/.state/.env"
+launch="export MEATGG_BOT_HOME='$workdir'; [ -f '$env_file' ] && { set -a; . '$env_file'; set +a; }; exec claude --permission-mode dontAsk --dangerously-load-development-channels plugin:meatgg-bot@sukhrob-claude-plugins"
 
-# Still alive -> nothing to do. A crash exits the pane and tmux drops the session.
 tmux has-session -t "$session" 2>/dev/null && exit 0
 
-# Reinstall first, so a plugin update lands without anyone re-running setup. The glob covers the
-# version in the path; writes are atomic, so rewriting this running script is safe.
+# Reinstall first, so a plugin update lands without anyone re-running setup.
 installer=$(ls -d "$HOME"/.claude/plugins/cache/*/meatgg-bot/*/dist/server.js 2>/dev/null |
   sort -V | tail -1)
 [ -n "$installer" ] && bun run "$installer" setup "$workdir" >/dev/null 2>&1
 
-# Never redirect Claude's stdout (`>> file`, `| tee`); that flips it to --print and it exits.
-# Use `tmux pipe-pane` to log.
+# Redirecting Claude's stdout enables --print and exits; log with tmux pipe-pane.
 tmux new -d -s "$session" -c "$workdir" "$launch"
 
-# Answers the development-channels prompt, which appears on every launch.
+# Development channels require Enter confirmation.
 for _ in $(seq 1 20); do
   if tmux capture-pane -p -t "$session" 2>/dev/null | grep -q "local development"; then
     tmux send-keys -t "$session" Enter

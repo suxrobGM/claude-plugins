@@ -75,13 +75,13 @@ Either way the entry point is the bundle, so a code change needs a rebuild and a
 
 ## Configure
 
-Both files live in `~/.claude/channels/meatgg/` and are read once at startup. Restart to apply a
-change.
+Both files live in `~/bots/meatgg/.state/` (mode `700`) and are read once at startup.
+Restart to apply a change.
 
 `.env` (required, mode `600`):
 
 ```bash
-MEATGG_API_URL=https://meat.gg/api
+MEATGG_API_URL=https://meat.gg
 MEATGG_API_KEY=<the ApiKey>
 LOG_LEVEL=info
 ```
@@ -112,9 +112,10 @@ there.
 
 - Holds `GET /api/events` open, retrying `1s → 30s`. A rejected key is fatal and says so in the
   channel; three failures in a row also warn there.
-- Polls `GET /tickets/unanswered` every 60s, so a ticket waiting on support arrives even
-  when the feed was down. A ticket is announced once, then reminded once if it is still
-  unanswered 10 minutes later, and never again; what has been announced lives in `notification-log.json`.
+- Polls `GET /tickets/unanswered` every 15 minutes, so a ticket waiting on support arrives even
+  when the feed was down. Each message is announced once and never repeated; what has been
+  announced lives in `notification-log.json`. A player who writes again is a new message, so it
+  is announced again on its own.
 - On each connect it also replays complaints created while it was disconnected, past the
   watermark in the same file. Creations only: no timestamp that list endpoint exposes moves for
   a reply.
@@ -128,7 +129,7 @@ there.
 `bun run dist/server.js setup`, or `/meatgg-bot:setup` in a session with the plugin, writes the
 whole session directory: the tmux respawn script, the permission allowlist, the operating policy,
 the `.mcp.json` registering the `meatgg` server, plus an `.env` to fill in and the cron schedule.
-`uninstall` reverses it, with `--all` to drop the channel config and key too.
+`uninstall` reverses it, with `--all` to drop the operator's key, settings and logs too.
 
 You only run setup once. `respawn.sh` reinstalls from the newest installed plugin before every
 spawn, so an update reaches the box on its own. The plugin owns those files and rewrites them, so
@@ -140,7 +141,7 @@ Full walkthrough: [deploy/README.md](deploy/README.md).
 ## Troubleshooting the bot box
 
 ```bash
-tail -n 200 ~/.claude/channels/meatgg/meatgg-bot.log | grep -E 'stream|unanswered|skipped|warn|error'
+tail -n 200 ~/bots/meatgg/.state/meatgg-bot.log | grep -E 'stream|unanswered|skipped|warn|error'
 tmux capture-pane -p -t meatgg | tail -40
 ```
 
@@ -148,6 +149,6 @@ tmux capture-pane -p -t meatgg | tail -40
 
 ```bash
 bun --cwd apps/bot run watch      # run against a local backend
-bun --cwd apps/bot run test       # the pure units: filter, unanswered-tickets poll, mentions, SSE parser
+bun --cwd apps/bot run test       # the pure units: filter, notifier, unanswered-tickets poll, mentions
 bun --cwd apps/bot run typecheck
 ```

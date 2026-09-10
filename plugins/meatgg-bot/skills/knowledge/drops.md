@@ -28,9 +28,7 @@ use the same page with `/en/` in place of `/ru/`.
 - **A trade ban, a limited account without the one time purchase of about $5, or a recent
   chargeback:** the account cannot receive offers at all.
 
-Three causes are fixable in a minute, and only these are worth a reissue right away:
+Two causes are fixable in a minute, and only these are worth a reissue right away:
 
-- **Offline trades** turned off in the Steam privacy settings, which the setting page turns
-  back on.
-- **A private inventory**, set to public in the same place.
+- **A private inventory**, set to public in the Steam privacy settings.
 - **A stale trade URL**, replaced with a fresh one on the site.

@@ -16,14 +16,14 @@ bun run ${CLAUDE_PLUGIN_ROOT}/dist/server.js setup
 Denied? Then this session runs in the bot's own working directory, whose policy denies
 `Bash(bun *)` and outranks this skill. Say so and give the user the command for a plain shell.
 
-It installs into `~/bots/meatgg/` (pass a path for another directory) and
-`~/.claude/channels/meatgg/`. The plugin owns those files and `respawn.sh` reinstalls them
-before every spawn, so never patch an installed copy. The `.env` is never touched once it
-exists.
+It installs into `~/bots/meatgg/` (pass a path for another directory). The plugin owns the
+files it writes there and `respawn.sh` reinstalls them before every spawn, so never patch an
+installed copy. The operator's `.env` and `settings.json` live in `.state/` below it and are
+never touched once they exist.
 
 Relay the printed "still to do" list, then offer to:
 
-- open `~/.claude/channels/meatgg/.env` for the API key. It must be an `ApiKey` from
+- open `~/bots/meatgg/.state/.env` for the API key. It must be an `ApiKey` from
   `/admin/api-keys`, owned by an admin holding `VIEW_TICKETS`, scoped to the write permissions
   `MANAGE_TICKETS`, `MANAGE_COMPLAINTS`, `MANAGE_DROPS`, `MANAGE_PUNISHMENTS`,
   `DELETE_CHAT_MESSAGES` plus the reads the bot answers from: `VIEW_TICKETS`, `VIEW_COMPLAINTS`, `VIEW_USERS`, `VIEW_PUNISHMENTS`, `VIEW_DROPS`,

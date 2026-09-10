@@ -6421,26 +6421,45 @@ if (typeof Reflect === "undefined" || !Reflect.getMetadata) {
 var import_pino = __toESM(require_pino(), 1);
 
 // src/state/paths.ts
+import { existsSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
-var channelDir = join(homedir(), ".claude", "channels", "meatgg");
-var envPath = join(channelDir, ".env");
-var settingsPath = join(channelDir, "settings.json");
-var notificationLogPath = join(channelDir, "notification-log.json");
-var logPath = join(channelDir, "meatgg-bot.log");
+import { join, resolve } from "path";
+var SESSION = "meatgg";
+var defaultWorkdir = join(homedir(), "bots", SESSION);
+var RESPAWN_FILE = "respawn.sh";
+function resolveBotHome() {
+  const declared = process.env.MEATGG_BOT_HOME;
+  if (declared) {
+    return resolve(declared);
+  }
+  const cwd = process.cwd();
+  return existsSync(join(cwd, RESPAWN_FILE)) ? cwd : defaultWorkdir;
+}
+var STATE_DIR = ".state";
+function botPaths(workdir) {
+  const stateDir = join(workdir, STATE_DIR);
+  return {
+    stateDir,
+    envPath: join(stateDir, ".env"),
+    settingsPath: join(stateDir, "settings.json"),
+    notificationLogPath: join(stateDir, "notification-log.json"),
+    logPath: join(stateDir, "meatgg-bot.log")
+  };
+}
+var { envPath, settingsPath, notificationLogPath, logPath } = botPaths(resolveBotHome());
 
 // src/common/logger/logger.ts
 var destination = import_pino.default.destination({ dest: logPath, mkdir: true, sync: true });
 var logger = import_pino.default({ level: process.env.LOG_LEVEL ?? "info", base: { plugin: "meatgg-bot" } }, destination);
 
 // src/deploy/setup.ts
-import { chmodSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, renameSync, writeFileSync } from "fs";
-import { resolve as resolve2 } from "path";
+import { existsSync as existsSync3, readFileSync as readFileSync2 } from "fs";
+import { chmod, mkdir, writeFile } from "fs/promises";
+import { dirname as dirname2 } from "path";
 
 // src/deploy/files.ts
-import { existsSync, readFileSync } from "fs";
-import { homedir as homedir2 } from "os";
-import { dirname, join as join2, resolve } from "path";
+import { existsSync as existsSync2, readFileSync } from "fs";
+import { dirname, join as join2, resolve as resolve2 } from "path";
 // ../../node_modules/.bun/@sinclair+typebox@0.34.49/node_modules/@sinclair/typebox/build/esm/value/guard/guard.mjs
 function IsAsyncIterator(value) {
   return IsObject(value) && globalThis.Symbol.asyncIterator in value;
@@ -12446,7 +12465,7 @@ __export(exports_type3, {
 // ../../node_modules/.bun/@sinclair+typebox@0.34.49/node_modules/@sinclair/typebox/build/esm/type/type/index.mjs
 var Type = exports_type3;
 
-// src/modules/settings/schemas/settings.schema.ts
+// src/modules/settings/settings.schema.ts
 var SettingsSchema = Type.Object({
   topics: Type.Object({
     ticket: Type.Boolean({ default: true }),
@@ -12467,14 +12486,13 @@ var SettingsSchema = Type.Object({
 });
 
 // src/deploy/files.ts
-var SESSION = "meatgg";
 var MANIFEST = join2(".claude-plugin", "plugin.json");
 function findPluginRoot() {
   let dir = import.meta.dir;
-  while (!existsSync(join2(dir, MANIFEST))) {
+  while (!existsSync2(join2(dir, MANIFEST))) {
     const parent = dirname(dir);
     if (parent === dir) {
-      return resolve(import.meta.dir, "..");
+      return resolve2(import.meta.dir, "..");
     }
     dir = parent;
   }
@@ -12491,10 +12509,10 @@ function pluginVersion() {
   }
 }
 function resolveWorkdir(argv) {
-  return resolve(argv.find((arg) => !arg.startsWith("--")) ?? join2(homedir2(), "bots", SESSION));
+  return resolve2(argv.find((arg) => !arg.startsWith("--")) ?? defaultWorkdir);
 }
 function respawnPath(workdir) {
-  return join2(workdir, "respawn.sh");
+  return join2(workdir, RESPAWN_FILE);
 }
 function fileAt(...segments) {
   return () => readFileSync(join2(PLUGIN_ROOT, ...segments), "utf8");
@@ -12503,6 +12521,7 @@ function template(name) {
   return fileAt("deploy", name);
 }
 function managedFiles(workdir) {
+  const { envPath: envPath2, settingsPath: settingsPath2 } = botPaths(workdir);
   return [
     { path: respawnPath(workdir), owner: "plugin", content: template("respawn.sh"), mode: 493 },
     { path: join2(workdir, "CLAUDE.md"), owner: "plugin", content: template("CLAUDE.md") },
@@ -12512,9 +12531,9 @@ function managedFiles(workdir) {
       content: template("settings.json")
     },
     { path: join2(workdir, ".mcp.json"), owner: "plugin", content: template("mcp.json") },
-    { path: envPath, owner: "operator", content: fileAt(".env.example"), mode: 384 },
+    { path: envPath2, owner: "operator", content: fileAt(".env.example"), mode: 384 },
     {
-      path: settingsPath,
+      path: settingsPath2,
       owner: "operator",
       content: () => `${JSON.stringify(exports_value2.Default(SettingsSchema, {}), null, 2)}
 `
@@ -12530,13 +12549,13 @@ function run(cmd, stdin) {
       stdout: "pipe",
       stderr: "pipe"
     });
-    return { ok: result.exitCode === 0, stdout: new TextDecoder().decode(result.stdout) };
+    return { ok: result.exitCode === 0, stdout: result.stdout.toString() };
   } catch {
     return { ok: false, stdout: "" };
   }
 }
 function hasCommand(name) {
-  return run(["sh", "-c", `command -v ${name}`]).ok;
+  return Bun.which(name) != null;
 }
 function cronLines(workdir) {
   const respawn = respawnPath(workdir);
@@ -12577,19 +12596,8 @@ function sessionRunning() {
 }
 
 // src/deploy/setup.ts
-function write(path, content, mode) {
-  mkdirSync(resolve2(path, ".."), { recursive: true });
-  const temp = `${path}.tmp`;
-  writeFileSync(temp, content, "utf8");
-  if (mode !== undefined) {
-    try {
-      chmodSync(temp, mode);
-    } catch {}
-  }
-  renameSync(temp, path);
-}
-function apply(file) {
-  const exists = existsSync2(file.path);
+async function apply(file) {
+  const exists = existsSync3(file.path);
   if (exists && file.owner === "operator") {
     return { file, outcome: "kept" };
   }
@@ -12597,29 +12605,40 @@ function apply(file) {
   if (exists && readFileSync2(file.path, "utf8") === content) {
     return { file, outcome: "unchanged" };
   }
-  write(file.path, content, file.mode);
+  await mkdir(dirname2(file.path), { recursive: true });
+  await writeFile(file.path, content, "utf8");
+  if (file.mode != null) {
+    try {
+      await chmod(file.path, file.mode);
+    } catch {}
+  }
   return { file, outcome: "wrote" };
+}
+async function ensureStateDir(stateDir) {
+  await mkdir(stateDir, { recursive: true });
+  try {
+    await chmod(stateDir, 448);
+  } catch {}
 }
 function report(rows) {
   for (const { file, outcome } of rows) {
     console.log(`  ${outcome.padEnd(9)}  ${file.path}`);
   }
 }
-function runSetup(argv) {
+async function runSetup(argv) {
   const workdir = resolveWorkdir(argv);
-  if (!existsSync2(templatesDir)) {
+  const { stateDir, envPath: envPath2, settingsPath: settingsPath2 } = botPaths(workdir);
+  if (!existsSync3(templatesDir)) {
     console.error(`error: templates not found at ${templatesDir}`);
     process.exit(1);
   }
-  const firstRun = !existsSync2(envPath);
+  await ensureStateDir(stateDir);
+  const firstRun = !existsSync3(envPath2);
   console.log(`meatgg-bot ${pluginVersion()}`);
-  const applied = managedFiles(workdir).map(apply);
+  const applied = await Promise.all(managedFiles(workdir).map(apply));
   console.log(`
 session workdir: ${workdir}`);
-  report(applied.filter((row) => row.file.owner === "plugin"));
-  console.log(`
-channel config: ${channelDir}`);
-  report(applied.filter((row) => row.file.owner === "operator"));
+  report(applied);
   if (hasCommand("crontab")) {
     console.log(installCron(workdir) ? `
 scheduled: respawn every 5 min, fresh context every 6h` : `
@@ -12628,13 +12647,13 @@ could not edit the crontab; add the lines from the README by hand`);
   if (firstRun) {
     console.log(`
 still to do:`);
-    console.log(`  1. put the API key in ${envPath}`);
+    console.log(`  1. put the API key in ${envPath2}`);
     console.log(`  2. cd ${workdir} && claude   ->   /login, then install the plugin:`);
     console.log("       /plugin marketplace add https://github.com/suxrobgm/claude-plugins");
     console.log("       /plugin install meatgg-bot@sukhrob-claude-plugins");
     console.log(`  3. ${respawnPath(workdir)}`);
     console.log(`
-edit ${settingsPath} for topics, scope, chat mode and mention names.`);
+edit ${settingsPath2} for topics, scope, chat mode and mention names.`);
     return;
   }
   if (applied.some((row) => row.outcome === "wrote") || !sessionRunning()) {
@@ -12645,11 +12664,12 @@ start or restart the session:`);
 }
 
 // src/deploy/uninstall.ts
-import { existsSync as existsSync3, rmdirSync, rmSync } from "fs";
+import { existsSync as existsSync4, rmdirSync, rmSync } from "fs";
 import { join as join3 } from "path";
 function runUninstall(argv) {
   const all = argv.includes("--all");
   const workdir = resolveWorkdir(argv);
+  const { stateDir } = botPaths(workdir);
   if (hasCommand("tmux")) {
     console.log(stopSession() ? `stopped session ${SESSION}` : `no session ${SESSION} running`);
   }
@@ -12657,10 +12677,14 @@ function runUninstall(argv) {
     console.log(removeCron(workdir) ? "removed the cron schedule" : "could not edit the crontab");
   }
   for (const { path } of managedFiles(workdir).filter((file) => file.owner === "plugin")) {
-    if (existsSync3(path)) {
+    if (existsSync4(path)) {
       rmSync(path);
       console.log(`  removed  ${path}`);
     }
+  }
+  if (all && existsSync4(stateDir)) {
+    rmSync(stateDir, { recursive: true, force: true });
+    console.log(`  removed  ${stateDir}`);
   }
   for (const dir of [join3(workdir, ".claude"), workdir]) {
     try {
@@ -12668,12 +12692,9 @@ function runUninstall(argv) {
       console.log(`  removed  ${dir}`);
     } catch {}
   }
-  if (all) {
-    rmSync(channelDir, { recursive: true, force: true });
-    console.log(`  removed  ${channelDir}`);
-  } else if (existsSync3(channelDir)) {
+  if (!all && existsSync4(stateDir)) {
     console.log(`
-kept ${channelDir} (key, settings, logs); pass --all to remove it too`);
+kept ${stateDir} (key, settings, logs); pass --all to remove it too`);
   }
   console.log(`
 still to do, if you are done with the bot:`);
@@ -33326,6 +33347,8 @@ class ConnectionStatus {
   lastEventAt = null;
   lastError = null;
   eventsSeen = 0;
+  notified = 0;
+  skipped = {};
   markConnected() {
     this.connected = true;
     this.lastError = null;
@@ -33338,12 +33361,20 @@ class ConnectionStatus {
     this.lastEventAt = new Date().toISOString();
     this.eventsSeen += 1;
   }
+  markNotified() {
+    this.notified += 1;
+  }
+  markSkipped(reason) {
+    this.skipped[reason] = (this.skipped[reason] ?? 0) + 1;
+  }
   snapshot() {
     return {
       connected: this.connected,
       lastEventAt: this.lastEventAt,
       lastError: this.lastError,
-      eventsSeen: this.eventsSeen
+      eventsSeen: this.eventsSeen,
+      notified: this.notified,
+      skipped: { ...this.skipped }
     };
   }
 }
@@ -33388,7 +33419,6 @@ Block attributes:
   message_id       the specific message, when the event is a reply
   subject, category, priority, target_steam_id   ticket and complaint details
   assignee_id      who the ticket is assigned to, when it is assigned
-  reminder         "true" when the player wrote again after you already answered once
   replayed         "true" when it arrived after a feed outage, so it may be old
   scope            "actionable" when settings limit you to cases a playbook covers
   severity         "warning" marks a feed problem, not a player
@@ -33417,12 +33447,12 @@ var ACTIONABLE_NOTE = "Scope is actionable: act only if a playbook in CLAUDE.md 
 function snakeCase(key) {
   return key.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
 }
-function buildMeta(event, replayed, scope) {
+function buildMeta(event, replayed, actionable) {
   const meta2 = {
     topic: event.topic,
     event: event.type,
     event_id: event.id,
-    occurred_at: event.at,
+    occurred_at: event.at.toISOString(),
     author_id: String(event.author.id),
     author_nickname: event.author.nickname
   };
@@ -33432,8 +33462,8 @@ function buildMeta(event, replayed, scope) {
   if (replayed) {
     meta2.replayed = "true";
   }
-  if (scope === "actionable") {
-    meta2.scope = scope;
+  if (actionable) {
+    meta2.scope = "actionable";
   }
   return meta2;
 }
@@ -33468,15 +33498,15 @@ class ChannelNotifier {
   constructor(mcp) {
     this.mcp = mcp;
   }
-  async notify(event, scope, replayed = false, reminder = false) {
-    const note = scope === "actionable" ? ` ${ACTIONABLE_NOTE}` : "";
-    const prefix = reminder ? "Reminder, still unanswered: " : "";
-    const content = `${prefix}${buildHeader(event)}
+  async notify(event, scope, delivery = {}) {
+    const actionable = scope === "actionable" && event.topic !== "chat";
+    const note = actionable ? ` ${ACTIONABLE_NOTE}` : "";
+    const content = `${buildHeader(event)}
 
 ${event.preview}
 
 ${buildAction(event)}${note} Text you write in this session is not delivered to anyone.`;
-    await this.send(content, buildMeta(event, replayed, scope));
+    await this.send(content, buildMeta(event, delivery.replayed === true, actionable));
   }
   async warn(content) {
     await this.send(content, { severity: "warning" });
@@ -33493,47 +33523,407 @@ ${buildAction(event)}${note} Text you write in this session is not delivered to 
   }
 }
 
-// src/api/meatgg.client.ts
+// ../../node_modules/.bun/@elysiajs+eden@1.4.9+1528d3638de40892/node_modules/@elysiajs/eden/dist/chunk-I5KHAGLL.mjs
+var d = class extends Error {
+  constructor(e, s) {
+    super(s + "");
+    this.status = e;
+    this.value = s;
+  }
+};
+var i = /(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z))|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z))|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z))/;
+var o = /(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{2}\s\d{4}\s\d{2}:\d{2}:\d{2}\sGMT(?:\+|-)\d{4}\s\([^)]+\)/;
+var u = /^(?:(?:(?:(?:0?[1-9]|[12][0-9]|3[01])[/\s-](?:0?[1-9]|1[0-2])[/\s-](?:19|20)\d{2})|(?:(?:19|20)\d{2}[/\s-](?:0?[1-9]|1[0-2])[/\s-](?:0?[1-9]|[12][0-9]|3[01]))))(?:\s(?:1[012]|0?[1-9]):[0-5][0-9](?::[0-5][0-9])?(?:\s[AP]M)?)?$/;
+var c = (t) => t.trim().length !== 0 && !Number.isNaN(Number(t));
+var a = (t, r) => {
+  if (typeof t != "string" || r?.parseDate === false)
+    return null;
+  let e = t.replace(/"/g, "");
+  if (i.test(e) || o.test(e) || u.test(e)) {
+    let s = new Date(e);
+    if (!Number.isNaN(s.getTime()))
+      return s;
+  }
+  return null;
+};
+var p = (t) => {
+  let r = t.charCodeAt(0), e = t.charCodeAt(t.length - 1);
+  return r === 123 && e === 125 || r === 91 && e === 93;
+};
+var f = (t, r) => JSON.parse(t, (e, s) => {
+  let n = a(s, r);
+  return n || s;
+});
+var g = (t, r) => {
+  if (!t)
+    return t;
+  if (c(t))
+    return +t;
+  if (t === "true")
+    return true;
+  if (t === "false")
+    return false;
+  if (r?.parseDate !== false) {
+    let e = a(t, r);
+    if (e)
+      return e;
+  }
+  if (p(t))
+    try {
+      return f(t, r);
+    } catch {}
+  return t;
+};
+var S = (t, r) => {
+  let e = t.data.toString();
+  return e === "null" ? null : g(e, r);
+};
+
+// ../../node_modules/.bun/@elysiajs+eden@1.4.9+1528d3638de40892/node_modules/@elysiajs/eden/dist/chunk-TTKI5TQ7.mjs
+var C = class {
+  constructor(t) {
+    this.url = t;
+    this.ws = new WebSocket(t);
+  }
+  ws;
+  send(t) {
+    return Array.isArray(t) ? (t.forEach((n) => this.send(n)), this) : (this.ws.send(typeof t == "object" ? JSON.stringify(t) : t.toString()), this);
+  }
+  on(t, n, r) {
+    return this.addEventListener(t, n, r);
+  }
+  off(t, n, r) {
+    return this.ws.removeEventListener(t, n, r), this;
+  }
+  subscribe(t, n) {
+    return this.addEventListener("message", t, n);
+  }
+  addEventListener(t, n, r) {
+    return this.ws.addEventListener(t, (o2) => {
+      if (t === "message") {
+        let i2 = S(o2);
+        n({ ...o2, data: i2 });
+      } else
+        n(o2);
+    }, r), this;
+  }
+  removeEventListener(t, n, r) {
+    return this.off(t, n, r), this;
+  }
+  close() {
+    return this.ws.close(), this;
+  }
+};
+var X = ["get", "post", "put", "delete", "patch", "options", "head", "connect", "subscribe"];
+var P = (e, t) => typeof t == "function" ? t(e) : t === true;
+var _ = ["localhost", "127.0.0.1", "0.0.0.0"];
+var q = typeof FileList > "u";
+var H = (e) => q ? e instanceof Blob : e instanceof FileList || e instanceof File;
+var Y = (e) => {
+  if (!e)
+    return false;
+  for (let t in e)
+    if (H(e[t]) || Array.isArray(e[t]) && e[t].find(H))
+      return true;
+  return false;
+};
+var K = (e) => q ? e : new Promise((t) => {
+  let n = new FileReader;
+  n.onload = () => {
+    let r = new File([n.result], e.name, { lastModified: e.lastModified, type: e.type });
+    t(r);
+  }, n.readAsArrayBuffer(e);
+});
+var A = async (e, t, n = {}, r = {}) => {
+  if (Array.isArray(e)) {
+    for (let o2 of e)
+      if (!Array.isArray(o2))
+        r = await A(o2, t, n, r);
+      else {
+        let i2 = o2[0];
+        if (typeof i2 == "string")
+          r[i2.toLowerCase()] = o2[1];
+        else
+          for (let [s, u2] of i2)
+            r[s.toLowerCase()] = u2;
+      }
+    return r;
+  }
+  if (!e)
+    return r;
+  switch (typeof e) {
+    case "function":
+      if (e instanceof Headers)
+        return A(e, t, n, r);
+      let o2 = await e(t, n);
+      return o2 ? A(o2, t, n, r) : r;
+    case "object":
+      if (e instanceof Headers)
+        return e.forEach((i2, s) => {
+          r[s.toLowerCase()] = i2;
+        }), r;
+      for (let [i2, s] of Object.entries(e))
+        r[i2.toLowerCase()] = s;
+      return r;
+    default:
+      return r;
+  }
+};
+function V(e, t) {
+  let n = e.split(`
+`), r = {};
+  for (let o2 of n) {
+    if (!o2 || o2.startsWith(":"))
+      continue;
+    let i2 = o2.indexOf(":");
+    if (i2 > 0) {
+      let s = o2.slice(0, i2).trim(), u2 = o2.slice(i2 + 1).replace(/^ /, "");
+      r[s] = u2 && g(u2, t);
+    }
+  }
+  return Object.keys(r).length > 0 ? r : null;
+}
+function* B(e, t) {
+  let n;
+  for (;(n = e.value.indexOf(`
+
+`)) !== -1; ) {
+    let r = e.value.slice(0, n);
+    if (e.value = e.value.slice(n + 2), r.trim()) {
+      let o2 = V(r, t);
+      o2 && (yield o2);
+    }
+  }
+}
+async function* U(e, t) {
+  let n = e.body;
+  if (!n)
+    return;
+  let r = n.getReader(), o2 = new TextDecoder("utf-8");
+  if (e.headers.get("Content-Type")?.startsWith("text/event-stream")) {
+    let i2 = { value: "" };
+    try {
+      for (;; ) {
+        let { done: u2, value: x } = await r.read();
+        if (u2)
+          break;
+        let m = typeof x == "string" ? x : o2.decode(x, { stream: true });
+        i2.value += m, yield* B(i2, t);
+      }
+      let s = o2.decode();
+      if (s && (i2.value += s), yield* B(i2, t), i2.value.trim()) {
+        let u2 = V(i2.value, t);
+        u2 && (yield u2);
+      }
+    } finally {
+      r.releaseLock();
+    }
+  } else
+    try {
+      for (;; ) {
+        let { done: i2, value: s } = await r.read();
+        if (i2)
+          break;
+        yield g(typeof s == "string" ? s : o2.decode(s, { stream: true }), { parseDate: t?.parseDate });
+      }
+    } finally {
+      r.releaseLock();
+    }
+}
+var L = (e, t, n = [], r) => new Proxy(() => {}, { get(o2, i2) {
+  if (i2 === "~path")
+    return "/" + n.join("/");
+  if (!(n.length === 0 && (i2 === "then" || i2 === "catch" || i2 === "finally")))
+    return L(e, t, [...n, i2], r);
+}, apply(o2, i2, [s, u2]) {
+  if (!s || u2 || typeof s == "object" && Object.keys(s).length !== 1 || X.includes(n.at(-1))) {
+    let x = [...n], m = x.pop(), b = "/" + x.join("/"), { fetcher: G = fetch, headers: R, onRequest: g2, onResponse: D, fetch: $ } = t, E = m === "get" || m === "head" || m === "subscribe", M = E ? s?.query : u2?.query, F = "";
+    if (M) {
+      let a2 = (k, d2) => {
+        d2 != null && (d2 instanceof Date && (d2 = d2.toISOString()), F += (F ? "&" : "?") + `${encodeURIComponent(k)}=${encodeURIComponent(typeof d2 == "object" ? JSON.stringify(d2) : d2 + "")}`);
+      };
+      for (let [k, d2] of Object.entries(M)) {
+        if (Array.isArray(d2)) {
+          for (let T of d2)
+            a2(k, T);
+          continue;
+        }
+        a2(k, d2);
+      }
+    }
+    if (m === "subscribe") {
+      let a2 = e.replace(/^([^]+):\/\//, e.startsWith("https://") ? "wss://" : e.startsWith("http://") || _.find((k) => e.includes(k)) ? "ws://" : "wss://") + b + F;
+      return new C(a2);
+    }
+    return (async () => {
+      R = await A(R, b, u2);
+      let a2 = { method: m?.toUpperCase(), body: s, ...$, headers: R };
+      a2.headers = { ...R, ...await A(E ? s?.headers : u2?.headers, b, a2) };
+      let k = E && typeof s == "object" ? s.fetch : u2?.fetch, T = (E && typeof s == "object" ? s.throwHttpError : u2?.throwHttpError) ?? t.throwHttpError;
+      if (a2 = { ...a2, ...k }, E && delete a2.body, g2) {
+        Array.isArray(g2) || (g2 = [g2]);
+        for (let y of g2) {
+          let c2 = await y(b, a2);
+          typeof c2 == "object" && (a2 = { ...a2, ...c2, headers: { ...a2.headers, ...await A(c2.headers, b, a2) } });
+        }
+      }
+      if (E && delete a2.body, Y(s)) {
+        let y = new FormData, c2 = (f2) => {
+          if (typeof f2 == "string" || H(f2))
+            return false;
+          if (typeof f2 == "object") {
+            if (f2 !== null)
+              return true;
+            if (f2 instanceof Date)
+              return false;
+          }
+          return false;
+        }, w = async (f2) => f2 instanceof File ? await K(f2) : c2(f2) ? JSON.stringify(f2) : f2;
+        for (let [f2, p2] of Object.entries(a2.body)) {
+          if (Array.isArray(p2)) {
+            if (p2.some((S2) => typeof S2 == "object" && S2 !== null && !H(S2)))
+              y.append(f2, JSON.stringify(p2));
+            else
+              for (let S2 = 0;S2 < p2.length; S2++) {
+                let z = p2[S2], Q = await w(z);
+                y.append(f2, Q);
+              }
+            continue;
+          }
+          if (q) {
+            if (Array.isArray(p2))
+              for (let O of p2)
+                y.append(f2, await w(O));
+            else
+              y.append(f2, await w(p2));
+            continue;
+          }
+          if (p2 instanceof File) {
+            y.append(f2, await K(p2));
+            continue;
+          }
+          if (p2 instanceof FileList) {
+            for (let O = 0;O < p2.length; O++)
+              y.append(f2, await K(p2[O]));
+            continue;
+          }
+          y.append(f2, await w(p2));
+        }
+        a2.body = y;
+      } else
+        typeof s == "object" ? (a2.headers["content-type"] = "application/json", a2.body = JSON.stringify(s)) : s != null && (a2.headers["content-type"] = "text/plain");
+      if (E && delete a2.body, g2) {
+        Array.isArray(g2) || (g2 = [g2]);
+        for (let y of g2) {
+          let c2 = await y(b, a2);
+          typeof c2 == "object" && (a2 = { ...a2, ...c2, headers: { ...a2.headers, ...await A(c2.headers, b, a2) } });
+        }
+      }
+      u2?.headers?.["content-type"] && (a2.headers["content-type"] = u2?.headers["content-type"]);
+      let I = e + b + F, l;
+      try {
+        l = await (r?.handle(new Request(I, a2)) ?? G(I, a2));
+      } catch (y) {
+        let c2 = new d(503, y);
+        if (P(c2, T))
+          throw c2;
+        return { data: null, error: c2, response: undefined, status: 503, headers: undefined };
+      }
+      let h = null, v = null;
+      if (D) {
+        Array.isArray(D) || (D = [D]);
+        for (let y of D)
+          try {
+            let c2 = await y(l.clone());
+            if (c2 != null) {
+              h = c2;
+              break;
+            }
+          } catch (c2) {
+            c2 instanceof d ? v = c2 : v = new d(422, c2);
+            break;
+          }
+      }
+      if (h !== null)
+        return { data: h, error: v, response: l, status: l.status, headers: l.headers };
+      switch (l.headers.get("Content-Type")?.split(";")[0]) {
+        case "text/event-stream":
+          h = U(l, { parseDate: t.parseDate });
+          break;
+        case "application/json":
+          h = JSON.parse(await l.text(), (c2, w) => {
+            if (typeof w != "string")
+              return w;
+            let f2 = a(w, { parseDate: t.parseDate });
+            return f2 || w;
+          });
+          break;
+        case "application/octet-stream":
+          h = await l.arrayBuffer();
+          break;
+        case "multipart/form-data":
+          let y = await l.formData();
+          h = {}, y.forEach((c2, w) => {
+            h[w] = c2;
+          });
+          break;
+        default:
+          l.headers.get("content-type")?.startsWith("text/") && l.headers.get("transfer-encoding") === "chunked" && !l.headers.has("content-length") ? h = U(l, { parseDate: t.parseDate }) : h = await l.text().then((c2) => g(c2, { parseDate: t.parseDate }));
+      }
+      if (l.status >= 300 || l.status < 200) {
+        if (v = new d(l.status, h), P(v, T))
+          throw v;
+        h = null;
+      }
+      return { data: h, error: v, response: l, status: l.status, headers: l.headers };
+    })();
+  }
+  return typeof s == "object" ? L(e, t, [...n, Object.values(s)[0]], r) : L(e, t, n);
+} });
+var se = (e, t = {}) => typeof e == "string" ? (t.keepDomain || (e.includes("://") || (e = (_.find((n) => e.includes(n)) ? "http://" : "https://") + e), e.endsWith("/") && (e = e.slice(0, -1))), L(e, t)) : (typeof window < "u" && console.warn("Elysia instance server found on client side, this is not recommended for security reason. Use generic type instead."), L("http://e.ly", t, [], e));
+
+// src/api/eden.ts
 class ApiAuthError extends Error {
 }
-function assertOk(response, label) {
+
+class ApiScopeError extends Error {
+}
+function unwrapEden(response, label) {
   if (response.status === 401) {
     throw new ApiAuthError("The API key was rejected (401)");
   }
-  if (!response.ok) {
+  if (response.status === 403) {
+    throw new ApiScopeError(`${label} was refused (403): the API key is missing a scope`);
+  }
+  if (response.error != null) {
     throw new Error(`${label} failed with ${response.status}`);
   }
+  return response.data;
+}
+
+// src/api/client.ts
+function resolveOrigin() {
+  return new URL(process.env.MEATGG_API_URL).origin;
 }
 
 class MeatggClient {
-  get baseUrl() {
-    return process.env.MEATGG_API_URL.replace(/\/$/, "");
-  }
-  get headers() {
-    return { "x-api-key": process.env.MEATGG_API_KEY };
-  }
+  http = se(resolveOrigin(), {
+    headers: { "x-api-key": process.env.MEATGG_API_KEY }
+  });
   async openEventStream(topics, signal) {
-    const url2 = `${this.baseUrl}/events?topics=${topics.join(",")}`;
-    const response = await fetch(url2, {
-      headers: { ...this.headers, accept: "text/event-stream" },
-      signal
+    const response = await this.http.api.events.get({
+      query: { topics: topics.join(",") },
+      fetch: { signal }
     });
-    assertOk(response, "Event stream");
-    if (!response.body) {
-      throw new Error("Event stream returned no body");
-    }
-    return response;
+    return unwrapEden(response, "Event stream");
   }
-  listTicketsUnansweredTickets() {
-    return this.getJson("/tickets/unanswered");
+  async listUnansweredTickets() {
+    const response = await this.http.api.tickets.unanswered.get();
+    return unwrapEden(response, "GET /tickets/unanswered");
   }
-  listPendingComplaints(limit) {
-    return this.getJson(`/complaints?status=PENDING&limit=${limit}`);
-  }
-  async getJson(path) {
-    const response = await fetch(`${this.baseUrl}${path}`, { headers: this.headers });
-    assertOk(response, `GET ${path}`);
-    return await response.json();
+  async listPendingComplaints(limit) {
+    const response = await this.http.api.complaints.get({ query: { status: "PENDING", limit } });
+    return unwrapEden(response, "GET /complaints").items;
   }
 }
 MeatggClient = __legacyDecorateClassTS([
@@ -33541,8 +33931,8 @@ MeatggClient = __legacyDecorateClassTS([
 ], MeatggClient);
 
 // src/state/json-file.ts
-import { chmod, mkdir, readFile, rename, writeFile } from "fs/promises";
-import { dirname as dirname2 } from "path";
+import { mkdir as mkdir2, readFile, writeFile as writeFile2 } from "fs/promises";
+import { dirname as dirname3 } from "path";
 async function readJsonFile(path, schema, label) {
   let raw;
   try {
@@ -33565,19 +33955,13 @@ async function readJsonFile(path, schema, label) {
   return withDefaults;
 }
 async function writeJsonFile(path, value) {
-  await mkdir(dirname2(path), { recursive: true });
-  const tmp = `${path}.tmp`;
-  await writeFile(tmp, JSON.stringify(value, null, 2), "utf8");
-  await rename(tmp, path);
-  try {
-    await chmod(path, 384);
-  } catch {}
+  await mkdir2(dirname3(path), { recursive: true });
+  await writeFile2(path, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 384 });
 }
 
 // src/modules/settings/settings.store.ts
 class SettingsStore {
   settings = null;
-  botId = null;
   async init() {
     this.settings = await readJsonFile(settingsPath, SettingsSchema, "settings.json");
     logger.info({ settings: this.settings }, "settings loaded");
@@ -33587,12 +33971,6 @@ class SettingsStore {
       throw new Error("SettingsStore.init() has not run");
     }
     return this.settings;
-  }
-  setBotUserId(id) {
-    this.botId = id;
-  }
-  get botUserId() {
-    return this.botId;
   }
 }
 SettingsStore = __legacyDecorateClassTS([
@@ -33641,12 +34019,12 @@ function ticketOutOfScope(subject, preview) {
   const text = `${subject} ${preview}`;
   return !ACTIONABLE_TICKET_WORDS.some((words) => words.test(text));
 }
-function outOfScope(event, botUserId) {
+function outOfScope(event) {
   switch (event.type) {
     case "ticket.created":
       return ticketOutOfScope(event.data.subject, event.preview);
     case "ticket.message":
-      if (botUserId != null && event.data.assigneeId === botUserId) {
+      if (event.data.assignedToBot) {
         return false;
       }
       return ticketOutOfScope(event.data.subject, event.preview);
@@ -33655,7 +34033,7 @@ function outOfScope(event, botUserId) {
       return !ACTIONABLE_COMPLAINT_CATEGORIES.has(event.data.category);
   }
 }
-function skipReason(event, settings, botUserId = null) {
+function skipReason(event, settings) {
   if (event.author.isBot) {
     return "self-authored";
   }
@@ -33671,7 +34049,7 @@ function skipReason(event, settings, botUserId = null) {
     }
     return null;
   }
-  if (settings.scope === "actionable" && outOfScope(event, botUserId)) {
+  if (settings.scope === "actionable" && outOfScope(event)) {
     return "out-of-scope";
   }
   if ((event.type === "ticket.message" || event.type === "complaint.message") && event.data.fromStaff) {
@@ -33690,16 +34068,18 @@ class EventHandler {
     this.status = status;
     this.notifier = notifier;
   }
-  async handle(event, replayed = false, reminder = false) {
+  async handle(event, delivery = {}) {
     try {
       this.status.markEvent();
       const settings = this.settings.get();
-      const reason = skipReason(event, settings, this.settings.botUserId);
+      const reason = skipReason(event, settings);
       if (reason) {
+        this.status.markSkipped(reason);
         logger.debug({ event: event.type, reason }, "event skipped");
         return;
       }
-      await this.notifier.notify(event, settings.scope, replayed, reminder);
+      await this.notifier.notify(event, settings.scope, delivery);
+      this.status.markNotified();
     } catch (err) {
       logger.error({ err, event: event.type }, "failed to handle event");
     }
@@ -33713,50 +34093,14 @@ EventHandler = __legacyDecorateClassTS([
     typeof ChannelNotifier === "undefined" ? Object : ChannelNotifier
   ])
 ], EventHandler);
-
-// src/modules/inbound/sse-parser.ts
-async function* parseSseStream(body) {
-  const decoder = new TextDecoder;
-  let buffer = "";
-  let event = "message";
-  let data = [];
-  for await (const chunk of body) {
-    buffer += decoder.decode(chunk, { stream: true });
-    let newline = buffer.indexOf(`
-`);
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline).replace(/\r$/, "");
-      buffer = buffer.slice(newline + 1);
-      newline = buffer.indexOf(`
-`);
-      if (line === "") {
-        if (data.length > 0) {
-          yield { event, data: data.join(`
-`) };
-        }
-        event = "message";
-        data = [];
-        continue;
-      }
-      if (line.startsWith(":")) {
-        continue;
-      }
-      const colon = line.indexOf(":");
-      const field = colon === -1 ? line : line.slice(0, colon);
-      const value = colon === -1 ? "" : line.slice(colon + 1).replace(/^ /, "");
-      if (field === "event") {
-        event = value;
-      } else if (field === "data") {
-        data.push(value);
-      }
-    }
-  }
-}
-
+// ../../packages/shared/src/constants/time.ts
+var SECOND_MS = 1000;
+var MINUTE_MS = 60 * SECOND_MS;
+var HOUR_MS = 60 * MINUTE_MS;
+var DAY_MS = 24 * HOUR_MS;
 // src/modules/inbound/notification-log.store.ts
 var NotifiedSchema = Type.Object({
-  notifiedAt: Type.Number(),
-  count: Type.Number()
+  notifiedAt: Type.Number()
 });
 var NotificationLogSchema = Type.Object({
   complaintId: Type.Number({ default: 0 }),
@@ -33789,19 +34133,21 @@ class NotificationLogStore {
   }
   async pruneNotified(before) {
     const { notified } = this.get();
-    const stale = Object.keys(notified).filter((key) => notified[key].notifiedAt < before);
-    if (stale.length === 0) {
-      return;
+    let removed = false;
+    for (const [key, entry] of Object.entries(notified)) {
+      if (entry.notifiedAt < before) {
+        delete notified[key];
+        removed = true;
+      }
     }
-    for (const key of stale) {
-      delete notified[key];
+    if (removed) {
+      await this.persist();
     }
-    await this.persist();
   }
   async persist() {
-    const write2 = this.writing.then(() => writeJsonFile(notificationLogPath, this.get()));
-    this.writing = write2.catch(() => {});
-    await write2;
+    const write = this.writing.then(() => writeJsonFile(notificationLogPath, this.get()));
+    this.writing = write.catch(() => {});
+    await write;
   }
 }
 NotificationLogStore = __legacyDecorateClassTS([
@@ -33809,14 +34155,18 @@ NotificationLogStore = __legacyDecorateClassTS([
 ], NotificationLogStore);
 
 // src/modules/inbound/unanswered-tickets.service.ts
-var POLL_INTERVAL_MS = 60000;
-var REMINDER_AFTER_MS = 600000;
-var MAX_NOTIFICATIONS = 2;
-var PRUNE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+var POLL_INTERVAL_MS = 15 * MINUTE_MS;
+var PRUNE_AFTER_MS = 7 * DAY_MS;
 var COMPLAINT_FETCH_LIMIT = 50;
+function toAuthor(listed) {
+  return { id: listed.id, nickname: listed.nickname, isBot: false };
+}
+function notifiedKey(ticketId, messageId) {
+  return `${ticketId}:${messageId ?? 0}`;
+}
 function toEvent(item) {
-  const author = { id: item.author.id, nickname: item.author.nickname, isBot: false };
-  const id = `poll:ticket:${item.id}:${item.lastMessageId ?? 0}`;
+  const author = toAuthor(item.author);
+  const id = `poll:ticket:${notifiedKey(item.id, item.lastMessageId)}`;
   if (item.lastMessageId == null) {
     return {
       id,
@@ -33843,14 +34193,11 @@ function toEvent(item) {
       subject: item.subject,
       messageId: item.lastMessageId,
       fromStaff: false,
-      assigneeId: item.assigneeId
+      assignedToBot: item.assignedToBot
     },
     author,
     preview: item.preview
   };
-}
-function complaintAuthor(listed) {
-  return { id: listed.id, nickname: listed.nickname, isBot: false };
 }
 
 class UnansweredTicketsService {
@@ -33874,10 +34221,9 @@ class UnansweredTicketsService {
       return;
     }
     try {
-      const { botUserId, items } = await this.api.listTicketsUnansweredTickets();
-      this.settings.setBotUserId(botUserId);
+      const { items } = await this.api.listUnansweredTickets();
       for (const item of items) {
-        await this.notifyIfDue(item);
+        await this.announceOnce(item);
       }
       await this.store.pruneNotified(this.now() - PRUNE_AFTER_MS);
     } catch (err) {
@@ -33891,8 +34237,8 @@ class UnansweredTicketsService {
     }
     const since = this.store.get().complaintId;
     try {
-      const { items } = await this.api.listPendingComplaints(COMPLAINT_FETCH_LIMIT);
-      const missed = items.filter((item) => item.id > since).sort((a, b) => a.id - b.id).slice(0, replayLimit);
+      const items = await this.api.listPendingComplaints(COMPLAINT_FETCH_LIMIT);
+      const missed = items.filter((item) => item.id > since).sort((a2, b) => a2.id - b.id).slice(0, replayLimit);
       for (const complaint of missed) {
         await this.handler.handle({
           id: `poll:complaint:${complaint.id}`,
@@ -33904,9 +34250,9 @@ class UnansweredTicketsService {
             category: complaint.category,
             targetSteamId: complaint.targetSteamId
           },
-          author: complaintAuthor(complaint.author),
+          author: toAuthor(complaint.author),
           preview: complaint.description
-        }, true);
+        }, { replayed: true });
         await this.store.setComplaintId(complaint.id);
       }
     } catch (err) {
@@ -33916,32 +34262,22 @@ class UnansweredTicketsService {
   async rememberLiveEvent(event) {
     if (event.type === "complaint.created") {
       await this.store.setComplaintId(event.data.complaintId);
-    } else if (event.type === "ticket.created") {
-      await this.store.setNotified(`${event.data.ticketId}:0`, {
-        notifiedAt: this.now(),
-        count: 1
-      });
-    } else if (event.type === "ticket.message") {
-      await this.store.setNotified(`${event.data.ticketId}:${event.data.messageId}`, {
-        notifiedAt: this.now(),
-        count: 1
+      return;
+    }
+    if (event.type === "ticket.created" || event.type === "ticket.message") {
+      const messageId = event.type === "ticket.message" ? event.data.messageId : null;
+      await this.store.setNotified(notifiedKey(event.data.ticketId, messageId), {
+        notifiedAt: this.now()
       });
     }
   }
-  async notifyIfDue(item) {
-    const key = `${item.id}:${item.lastMessageId ?? 0}`;
-    const previous = this.store.get().notified[key];
-    const now = this.now();
-    if (previous) {
-      if (previous.count >= MAX_NOTIFICATIONS || now - previous.notifiedAt < REMINDER_AFTER_MS) {
-        return;
-      }
-      await this.handler.handle(toEvent(item), true, true);
-      await this.store.setNotified(key, { notifiedAt: now, count: previous.count + 1 });
+  async announceOnce(item) {
+    const key = notifiedKey(item.id, item.lastMessageId);
+    if (this.store.get().notified[key]) {
       return;
     }
-    await this.handler.handle(toEvent(item), true);
-    await this.store.setNotified(key, { notifiedAt: now, count: 1 });
+    await this.handler.handle(toEvent(item), { replayed: true });
+    await this.store.setNotified(key, { notifiedAt: this.now() });
   }
 }
 UnansweredTicketsService = __legacyDecorateClassTS([
@@ -33967,6 +34303,7 @@ class EventStreamService {
   notifier;
   abort = new AbortController;
   failures = 0;
+  warnedAboutScope = false;
   constructor(api2, settings, handler, unanswered, status, notifier) {
     this.api = api2;
     this.settings = settings;
@@ -33987,18 +34324,28 @@ class EventStreamService {
       } catch (err) {
         if (err instanceof ApiAuthError) {
           this.status.markDisconnected(err.message);
-          await this.notifier.warn(`meat.gg event feed stopped: ${err.message}. Rotate the key in /admin/api-keys, update ~/.claude/channels/meatgg/.env, and restart the session.`);
+          await this.notifier.warn(`meat.gg event feed stopped: ${err.message}. Rotate the key in /admin/api-keys, update the .env in the bot's working directory, and restart the session.`);
           return;
         }
         this.failures += 1;
         const reason = err instanceof Error ? err.message : String(err);
         this.status.markDisconnected(reason);
         logger.warn({ err, failures: this.failures }, "event stream dropped");
-        if (this.failures === WARN_AFTER_FAILURES) {
-          await this.notifier.warn(`meat.gg event feed has been unreachable for ${this.failures} attempts (${reason}). Still retrying.`);
-        }
+        await this.warnAboutFailure(err, reason, topics);
         await Bun.sleep(RETRY_DELAYS_MS[Math.min(this.failures - 1, RETRY_DELAYS_MS.length - 1)]);
       }
+    }
+  }
+  async warnAboutFailure(err, reason, topics) {
+    if (err instanceof ApiScopeError) {
+      if (!this.warnedAboutScope) {
+        this.warnedAboutScope = true;
+        await this.notifier.warn(`meat.gg event feed is refused: ${reason}. It covers ${topics.join(", ")} on one connection, so every topic stops until the key is rescoped in /admin/api-keys.`);
+      }
+      return;
+    }
+    if (this.failures === WARN_AFTER_FAILURES) {
+      await this.notifier.warn(`meat.gg event feed has been unreachable for ${this.failures} attempts (${reason}). Still retrying.`);
     }
   }
   enabledTopics() {
@@ -34006,24 +34353,18 @@ class EventStreamService {
     return Object.keys(topics).filter((topic) => topics[topic]);
   }
   async consume(topics) {
-    const response = await this.api.openEventStream(topics, this.abort.signal);
+    const stream = await this.api.openEventStream(topics, this.abort.signal);
     this.status.markConnected();
     this.failures = 0;
     logger.info({ topics }, "event stream connected");
     await this.unanswered.replayMissedComplaints();
-    for await (const frame of parseSseStream(response.body)) {
-      if (frame.event === "ping" || frame.event === "error") {
+    for await (const frame of stream) {
+      const chunk = frame.data;
+      if (chunk.type === "ping" || chunk.type === "error") {
         continue;
       }
-      let event;
-      try {
-        event = JSON.parse(frame.data);
-      } catch (err) {
-        logger.warn({ err, frame: frame.event }, "unparsable event frame");
-        continue;
-      }
-      await this.handler.handle(event);
-      await this.unanswered.rememberLiveEvent(event);
+      await this.handler.handle(chunk);
+      await this.unanswered.rememberLiveEvent(chunk);
     }
     throw new Error("event stream closed by the server");
   }
@@ -34042,7 +34383,7 @@ EventStreamService = __legacyDecorateClassTS([
 
 // src/app.ts
 if (process.argv[2] === "setup") {
-  runSetup(process.argv.slice(3));
+  await runSetup(process.argv.slice(3));
   process.exit(0);
 }
 if (process.argv[2] === "uninstall") {
