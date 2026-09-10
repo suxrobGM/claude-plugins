@@ -33,6 +33,7 @@
       "mcp__meatgg__list_game_reports"
     ],
     "allow": [
+      "Read(~/.claude/plugins/**/skills/**)",
       "mcp__meatgg__*",
       "mcp__plugin_meatgg-bot_meatgg-bot__get_channel_status",
       "WebFetch",
