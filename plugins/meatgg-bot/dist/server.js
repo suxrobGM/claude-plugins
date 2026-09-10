@@ -6426,7 +6426,7 @@ import { join } from "path";
 var channelDir = join(homedir(), ".claude", "channels", "meatgg");
 var envPath = join(channelDir, ".env");
 var settingsPath = join(channelDir, "settings.json");
-var lastSeenPath = join(channelDir, "last-seen.json");
+var notificationLogPath = join(channelDir, "notification-log.json");
 var logPath = join(channelDir, "meatgg-bot.log");
 
 // src/common/logger/logger.ts
@@ -33387,8 +33387,10 @@ Block attributes:
   ticket_id / complaint_id / channel_id   where to read and where to reply
   message_id       the specific message, when the event is a reply
   subject, category, priority, target_steam_id   ticket and complaint details
+  assignee_id      who the ticket is assigned to, when it is assigned
+  reminder         "true" when the player wrote again after you already answered once
   replayed         "true" when it arrived after a feed outage, so it may be old
-  scope            "actionable" when settings limit you to drop tickets and bugged bans
+  scope            "actionable" when settings limit you to cases a playbook covers
   severity         "warning" marks a feed problem, not a player
 
 Text you write in this session reaches nobody. A reply exists only as the tool call named at
@@ -33398,9 +33400,10 @@ the end of each block:
   chat.message   mcp__meatgg__get_chat_messages, then mcp__meatgg__send_chat_message
 
 Every read is yours, and so are these writes: the three replies above, mcp__meatgg__assign_ticket,
-mcp__meatgg__set_complaint_status, mcp__meatgg__retry_drop, mcp__meatgg__cancel_drop and
-mcp__meatgg__lift_bugged_ban. Denied: close_ticket, reopen_ticket, grant_drop, search_audit_logs,
-get_transactions, list_game_reports. A denied tool still appears in the list, so read this
+mcp__meatgg__set_complaint_status, mcp__meatgg__retry_drop, mcp__meatgg__cancel_drop,
+mcp__meatgg__lift_bugged_ban and mcp__meatgg__close_ticket, which follows a reply that routed or
+fully answered the ticket and never a drop ticket. Denied: reopen_ticket, grant_drop,
+search_audit_logs, get_transactions, list_game_reports. A denied tool still appears in the list, so read this
 paragraph rather than calling one to find out. Writes are capped at 20 per minute.`;
 function startMcpServer() {
   const server = new McpServer({ name: "meatgg-bot", version: "1.0.0" }, { capabilities: CAPABILITIES, instructions: INSTRUCTIONS });
@@ -33410,7 +33413,7 @@ function startMcpServer() {
 }
 
 // src/modules/inbound/channel-notifier.ts
-var ACTIONABLE_NOTE = "Scope is actionable: act only if this is a drop you can reissue or a ban get_punishments flags bugged; otherwise do nothing at all.";
+var ACTIONABLE_NOTE = "Scope is actionable: act only if a playbook in CLAUDE.md covers this case; otherwise do nothing at all.";
 function snakeCase(key) {
   return key.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
 }
@@ -33465,9 +33468,10 @@ class ChannelNotifier {
   constructor(mcp) {
     this.mcp = mcp;
   }
-  async notify(event, scope, replayed = false) {
+  async notify(event, scope, replayed = false, reminder = false) {
     const note = scope === "actionable" ? ` ${ACTIONABLE_NOTE}` : "";
-    const content = `${buildHeader(event)}
+    const prefix = reminder ? "Reminder, still unanswered: " : "";
+    const content = `${prefix}${buildHeader(event)}
 
 ${event.preview}
 
@@ -33493,8 +33497,8 @@ ${buildAction(event)}${note} Text you write in this session is not delivered to 
 class ApiAuthError extends Error {
 }
 function assertOk(response, label) {
-  if (response.status === 401 || response.status === 403) {
-    throw new ApiAuthError(`The API key was rejected (${response.status})`);
+  if (response.status === 401) {
+    throw new ApiAuthError("The API key was rejected (401)");
   }
   if (!response.ok) {
     throw new Error(`${label} failed with ${response.status}`);
@@ -33520,8 +33524,8 @@ class MeatggClient {
     }
     return response;
   }
-  listOpenTickets(limit) {
-    return this.getJson(`/tickets/all?status=OPEN&limit=${limit}`);
+  listTicketsUnansweredTickets() {
+    return this.getJson("/tickets/unanswered");
   }
   listPendingComplaints(limit) {
     return this.getJson(`/complaints?status=PENDING&limit=${limit}`);
@@ -33573,6 +33577,7 @@ async function writeJsonFile(path, value) {
 // src/modules/settings/settings.store.ts
 class SettingsStore {
   settings = null;
+  botId = null;
   async init() {
     this.settings = await readJsonFile(settingsPath, SettingsSchema, "settings.json");
     logger.info({ settings: this.settings }, "settings loaded");
@@ -33582,6 +33587,12 @@ class SettingsStore {
       throw new Error("SettingsStore.init() has not run");
     }
     return this.settings;
+  }
+  setBotUserId(id) {
+    this.botId = id;
+  }
+  get botUserId() {
+    return this.botId;
   }
 }
 SettingsStore = __legacyDecorateClassTS([
@@ -33614,30 +33625,42 @@ function mentionsBot(text, names) {
 
 // src/modules/inbound/event-filter.ts
 var DROP_WORDS = /\u0434\u0440\u043E\u043F|drop|\u043A\u0435\u0439\u0441|case|\u0442\u0440\u0435\u0439\u0434|trade|\u043E\u0431\u043C\u0435\u043D/i;
-var BAN_WORDS = /\u0431\u0430\u043D|ban|\u0431\u043B\u043E\u043A|\u0440\u0430\u0437\u0431\u0430\u043D|unban|\u043F\u0440\u043E\u0432\u0435\u0440\u043A/i;
-var BAN_COMPLAINT_CATEGORIES = new Set(["unfair_ban", "other"]);
-function outOfScope(event) {
+var PUNISHMENT_WORDS = /\u0431\u0430\u043D|\u043C\u0443\u0442|\u0431\u043B\u043E\u043A|\u0440\u0430\u0437\u0431\u0430\u043D|\u0440\u0430\u0437\u043C\u0443\u0442|\u043F\u0440\u043E\u0432\u0435\u0440\u043A|\bban|\bmute/i;
+var CHEAT_WORDS = /\u0447\u0438\u0442|\u0441\u043E\u0444\u0442|\b\u0432\u0445\b|\u0430\u0438\u043C|\u043A\u0440\u0443\u0442\u0438\u043B|\bwh\b|\baim|cheat|hack/i;
+var FAQ_WORDS = /\u043F\u0440\u0438\u043F\u0438\u0441\u043A|\u0441\u043A\u0438\u043D|!wp|\u0430\u0434\u043C\u0438\u043D\u043A|\u0437\u0430\u044F\u0432\u043A|\u0432\u043E\u0437\u0440\u0430\u0441\u0442|14\+/i;
+var ACTIONABLE_TICKET_WORDS = [DROP_WORDS, PUNISHMENT_WORDS, CHEAT_WORDS, FAQ_WORDS];
+var ACTIONABLE_COMPLAINT_CATEGORIES = new Set([
+  "cheating",
+  "unfair_ban",
+  "unfair_mute",
+  "abuse",
+  "harassment",
+  "other"
+]);
+function ticketOutOfScope(subject, preview) {
+  const text = `${subject} ${preview}`;
+  return !ACTIONABLE_TICKET_WORDS.some((words) => words.test(text));
+}
+function outOfScope(event, botUserId) {
   switch (event.type) {
     case "ticket.created":
+      return ticketOutOfScope(event.data.subject, event.preview);
     case "ticket.message":
-      return !DROP_WORDS.test(`${event.data.subject} ${event.preview}`);
+      if (botUserId != null && event.data.assigneeId === botUserId) {
+        return false;
+      }
+      return ticketOutOfScope(event.data.subject, event.preview);
     case "complaint.created":
-      return !BAN_COMPLAINT_CATEGORIES.has(event.data.category) || !BAN_WORDS.test(event.preview);
     case "complaint.message":
-      return !BAN_COMPLAINT_CATEGORIES.has(event.data.category);
-    case "chat.message":
-      return true;
+      return !ACTIONABLE_COMPLAINT_CATEGORIES.has(event.data.category);
   }
 }
-function skipReason(event, settings) {
+function skipReason(event, settings, botUserId = null) {
   if (event.author.isBot) {
     return "self-authored";
   }
   if (!settings.topics[event.topic]) {
     return "topic-disabled";
-  }
-  if (settings.scope === "actionable" && outOfScope(event)) {
-    return "out-of-scope";
   }
   if (event.type === "chat.message") {
     if (!settings.chat.channelIds.includes(event.data.channelId)) {
@@ -33647,6 +33670,9 @@ function skipReason(event, settings) {
       return "not-mentioned";
     }
     return null;
+  }
+  if (settings.scope === "actionable" && outOfScope(event, botUserId)) {
+    return "out-of-scope";
   }
   if ((event.type === "ticket.message" || event.type === "complaint.message") && event.data.fromStaff) {
     return "staff-replied";
@@ -33664,16 +33690,16 @@ class EventHandler {
     this.status = status;
     this.notifier = notifier;
   }
-  async handle(event, replayed = false) {
+  async handle(event, replayed = false, reminder = false) {
     try {
       this.status.markEvent();
       const settings = this.settings.get();
-      const reason = skipReason(event, settings);
+      const reason = skipReason(event, settings, this.settings.botUserId);
       if (reason) {
         logger.debug({ event: event.type, reason }, "event skipped");
         return;
       }
-      await this.notifier.notify(event, settings.scope, replayed);
+      await this.notifier.notify(event, settings.scope, replayed, reminder);
     } catch (err) {
       logger.error({ err, event: event.type }, "failed to handle event");
     }
@@ -33687,133 +33713,6 @@ EventHandler = __legacyDecorateClassTS([
     typeof ChannelNotifier === "undefined" ? Object : ChannelNotifier
   ])
 ], EventHandler);
-
-// src/modules/inbound/last-seen.store.ts
-var LastSeenSchema = Type.Object({
-  ticketId: Type.Number({ default: 0 }),
-  complaintId: Type.Number({ default: 0 })
-});
-
-class LastSeenStore {
-  state = null;
-  writing = Promise.resolve();
-  async init() {
-    this.state = await readJsonFile(lastSeenPath, LastSeenSchema, "last-seen.json");
-  }
-  get() {
-    if (!this.state) {
-      throw new Error("LastSeenStore.init() has not run");
-    }
-    return this.state;
-  }
-  async set(key, value) {
-    const state = this.get();
-    if (value <= state[key]) {
-      return;
-    }
-    state[key] = value;
-    const write2 = this.writing.then(() => writeJsonFile(lastSeenPath, state));
-    this.writing = write2.catch(() => {});
-    await write2;
-  }
-}
-LastSeenStore = __legacyDecorateClassTS([
-  singleton_default()
-], LastSeenStore);
-
-// src/modules/inbound/catch-up.service.ts
-var FETCH_LIMIT = 50;
-function author(listed) {
-  return { id: listed.id, nickname: listed.nickname, isBot: false };
-}
-
-class CatchUpService {
-  api;
-  lastSeen;
-  settings;
-  handler;
-  constructor(api2, lastSeen, settings, handler) {
-    this.api = api2;
-    this.lastSeen = lastSeen;
-    this.settings = settings;
-    this.handler = handler;
-  }
-  async run() {
-    const { topics, replayLimit } = this.settings.get();
-    const pending = [];
-    if (topics.ticket) {
-      pending.push(this.replay({
-        topic: "ticket",
-        key: "ticketId",
-        fetch: () => this.api.listOpenTickets(FETCH_LIMIT),
-        toEvent: (ticket) => ({
-          id: `catch-up:ticket:${ticket.id}`,
-          at: ticket.createdAt,
-          topic: "ticket",
-          type: "ticket.created",
-          data: {
-            ticketId: ticket.id,
-            subject: ticket.subject,
-            category: ticket.category,
-            priority: ticket.priority
-          },
-          author: author(ticket.author),
-          preview: ticket.description
-        })
-      }, replayLimit));
-    }
-    if (topics.complaint) {
-      pending.push(this.replay({
-        topic: "complaint",
-        key: "complaintId",
-        fetch: () => this.api.listPendingComplaints(FETCH_LIMIT),
-        toEvent: (complaint) => ({
-          id: `catch-up:complaint:${complaint.id}`,
-          at: complaint.createdAt,
-          topic: "complaint",
-          type: "complaint.created",
-          data: {
-            complaintId: complaint.id,
-            category: complaint.category,
-            targetSteamId: complaint.targetSteamId
-          },
-          author: author(complaint.author),
-          preview: complaint.description
-        })
-      }, replayLimit));
-    }
-    await Promise.all(pending);
-  }
-  async record(event) {
-    if (event.type === "ticket.created") {
-      await this.lastSeen.set("ticketId", event.data.ticketId);
-    } else if (event.type === "complaint.created") {
-      await this.lastSeen.set("complaintId", event.data.complaintId);
-    }
-  }
-  async replay(replay, limit) {
-    const since = this.lastSeen.get()[replay.key];
-    try {
-      const { items } = await replay.fetch();
-      const missed = items.filter((item) => item.id > since).sort((a, b) => a.id - b.id).slice(0, limit);
-      for (const item of missed) {
-        await this.handler.handle(replay.toEvent(item), true);
-        await this.lastSeen.set(replay.key, item.id);
-      }
-    } catch (err) {
-      logger.warn({ err, topic: replay.topic }, "catch-up failed");
-    }
-  }
-}
-CatchUpService = __legacyDecorateClassTS([
-  singleton_default(),
-  __legacyMetadataTS("design:paramtypes", [
-    typeof MeatggClient === "undefined" ? Object : MeatggClient,
-    typeof LastSeenStore === "undefined" ? Object : LastSeenStore,
-    typeof SettingsStore === "undefined" ? Object : SettingsStore,
-    typeof EventHandler === "undefined" ? Object : EventHandler
-  ])
-], CatchUpService);
 
 // src/modules/inbound/sse-parser.ts
 async function* parseSseStream(body) {
@@ -33854,6 +33753,207 @@ async function* parseSseStream(body) {
   }
 }
 
+// src/modules/inbound/notification-log.store.ts
+var NotifiedSchema = Type.Object({
+  notifiedAt: Type.Number(),
+  count: Type.Number()
+});
+var NotificationLogSchema = Type.Object({
+  complaintId: Type.Number({ default: 0 }),
+  notified: Type.Record(Type.String(), NotifiedSchema, { default: {} })
+});
+
+class NotificationLogStore {
+  state = null;
+  writing = Promise.resolve();
+  async init() {
+    this.state = await readJsonFile(notificationLogPath, NotificationLogSchema, "notification-log.json");
+  }
+  get() {
+    if (!this.state) {
+      throw new Error("NotificationLogStore.init() has not run");
+    }
+    return this.state;
+  }
+  async setComplaintId(value) {
+    const state = this.get();
+    if (value <= state.complaintId) {
+      return;
+    }
+    state.complaintId = value;
+    await this.persist();
+  }
+  async setNotified(key, entry) {
+    this.get().notified[key] = entry;
+    await this.persist();
+  }
+  async pruneNotified(before) {
+    const { notified } = this.get();
+    const stale = Object.keys(notified).filter((key) => notified[key].notifiedAt < before);
+    if (stale.length === 0) {
+      return;
+    }
+    for (const key of stale) {
+      delete notified[key];
+    }
+    await this.persist();
+  }
+  async persist() {
+    const write2 = this.writing.then(() => writeJsonFile(notificationLogPath, this.get()));
+    this.writing = write2.catch(() => {});
+    await write2;
+  }
+}
+NotificationLogStore = __legacyDecorateClassTS([
+  singleton_default()
+], NotificationLogStore);
+
+// src/modules/inbound/unanswered-tickets.service.ts
+var POLL_INTERVAL_MS = 60000;
+var REMINDER_AFTER_MS = 600000;
+var MAX_NOTIFICATIONS = 2;
+var PRUNE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+var COMPLAINT_FETCH_LIMIT = 50;
+function toEvent(item) {
+  const author = { id: item.author.id, nickname: item.author.nickname, isBot: false };
+  const id = `poll:ticket:${item.id}:${item.lastMessageId ?? 0}`;
+  if (item.lastMessageId == null) {
+    return {
+      id,
+      at: item.lastMessageAt,
+      topic: "ticket",
+      type: "ticket.created",
+      data: {
+        ticketId: item.id,
+        subject: item.subject,
+        category: item.category,
+        priority: item.priority
+      },
+      author,
+      preview: item.preview
+    };
+  }
+  return {
+    id,
+    at: item.lastMessageAt,
+    topic: "ticket",
+    type: "ticket.message",
+    data: {
+      ticketId: item.id,
+      subject: item.subject,
+      messageId: item.lastMessageId,
+      fromStaff: false,
+      assigneeId: item.assigneeId
+    },
+    author,
+    preview: item.preview
+  };
+}
+function complaintAuthor(listed) {
+  return { id: listed.id, nickname: listed.nickname, isBot: false };
+}
+
+class UnansweredTicketsService {
+  api;
+  store;
+  settings;
+  handler;
+  now = Date.now;
+  constructor(api2, store, settings, handler) {
+    this.api = api2;
+    this.store = store;
+    this.settings = settings;
+    this.handler = handler;
+  }
+  async start() {
+    await this.poll();
+    setInterval(() => void this.poll(), POLL_INTERVAL_MS).unref();
+  }
+  async poll() {
+    if (!this.settings.get().topics.ticket) {
+      return;
+    }
+    try {
+      const { botUserId, items } = await this.api.listTicketsUnansweredTickets();
+      this.settings.setBotUserId(botUserId);
+      for (const item of items) {
+        await this.notifyIfDue(item);
+      }
+      await this.store.pruneNotified(this.now() - PRUNE_AFTER_MS);
+    } catch (err) {
+      logger.warn({ err }, "unanswered tickets poll failed");
+    }
+  }
+  async replayMissedComplaints() {
+    const { topics, replayLimit } = this.settings.get();
+    if (!topics.complaint) {
+      return;
+    }
+    const since = this.store.get().complaintId;
+    try {
+      const { items } = await this.api.listPendingComplaints(COMPLAINT_FETCH_LIMIT);
+      const missed = items.filter((item) => item.id > since).sort((a, b) => a.id - b.id).slice(0, replayLimit);
+      for (const complaint of missed) {
+        await this.handler.handle({
+          id: `poll:complaint:${complaint.id}`,
+          at: complaint.createdAt,
+          topic: "complaint",
+          type: "complaint.created",
+          data: {
+            complaintId: complaint.id,
+            category: complaint.category,
+            targetSteamId: complaint.targetSteamId
+          },
+          author: complaintAuthor(complaint.author),
+          preview: complaint.description
+        }, true);
+        await this.store.setComplaintId(complaint.id);
+      }
+    } catch (err) {
+      logger.warn({ err }, "complaint replay failed");
+    }
+  }
+  async rememberLiveEvent(event) {
+    if (event.type === "complaint.created") {
+      await this.store.setComplaintId(event.data.complaintId);
+    } else if (event.type === "ticket.created") {
+      await this.store.setNotified(`${event.data.ticketId}:0`, {
+        notifiedAt: this.now(),
+        count: 1
+      });
+    } else if (event.type === "ticket.message") {
+      await this.store.setNotified(`${event.data.ticketId}:${event.data.messageId}`, {
+        notifiedAt: this.now(),
+        count: 1
+      });
+    }
+  }
+  async notifyIfDue(item) {
+    const key = `${item.id}:${item.lastMessageId ?? 0}`;
+    const previous = this.store.get().notified[key];
+    const now = this.now();
+    if (previous) {
+      if (previous.count >= MAX_NOTIFICATIONS || now - previous.notifiedAt < REMINDER_AFTER_MS) {
+        return;
+      }
+      await this.handler.handle(toEvent(item), true, true);
+      await this.store.setNotified(key, { notifiedAt: now, count: previous.count + 1 });
+      return;
+    }
+    await this.handler.handle(toEvent(item), true);
+    await this.store.setNotified(key, { notifiedAt: now, count: 1 });
+  }
+}
+UnansweredTicketsService = __legacyDecorateClassTS([
+  singleton_default(),
+  __legacyMetadataTS("design:paramtypes", [
+    typeof MeatggClient === "undefined" ? Object : MeatggClient,
+    typeof NotificationLogStore === "undefined" ? Object : NotificationLogStore,
+    typeof SettingsStore === "undefined" ? Object : SettingsStore,
+    typeof EventHandler === "undefined" ? Object : EventHandler
+  ])
+], UnansweredTicketsService);
+
 // src/modules/inbound/event-stream.service.ts
 var RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 var WARN_AFTER_FAILURES = 3;
@@ -33862,16 +33962,16 @@ class EventStreamService {
   api;
   settings;
   handler;
-  catchUp;
+  unanswered;
   status;
   notifier;
   abort = new AbortController;
   failures = 0;
-  constructor(api2, settings, handler, catchUp, status, notifier) {
+  constructor(api2, settings, handler, unanswered, status, notifier) {
     this.api = api2;
     this.settings = settings;
     this.handler = handler;
-    this.catchUp = catchUp;
+    this.unanswered = unanswered;
     this.status = status;
     this.notifier = notifier;
   }
@@ -33910,7 +34010,7 @@ class EventStreamService {
     this.status.markConnected();
     this.failures = 0;
     logger.info({ topics }, "event stream connected");
-    await this.catchUp.run();
+    await this.unanswered.replayMissedComplaints();
     for await (const frame of parseSseStream(response.body)) {
       if (frame.event === "ping" || frame.event === "error") {
         continue;
@@ -33923,7 +34023,7 @@ class EventStreamService {
         continue;
       }
       await this.handler.handle(event);
-      await this.catchUp.record(event);
+      await this.unanswered.rememberLiveEvent(event);
     }
     throw new Error("event stream closed by the server");
   }
@@ -33934,7 +34034,7 @@ EventStreamService = __legacyDecorateClassTS([
     typeof MeatggClient === "undefined" ? Object : MeatggClient,
     typeof SettingsStore === "undefined" ? Object : SettingsStore,
     typeof EventHandler === "undefined" ? Object : EventHandler,
-    typeof CatchUpService === "undefined" ? Object : CatchUpService,
+    typeof UnansweredTicketsService === "undefined" ? Object : UnansweredTicketsService,
     typeof ConnectionStatus === "undefined" ? Object : ConnectionStatus,
     typeof ChannelNotifier === "undefined" ? Object : ChannelNotifier
   ])
@@ -33952,9 +34052,10 @@ if (process.argv[2] === "uninstall") {
 validateEnv();
 await Promise.all([
   instance.resolve(SettingsStore).init(),
-  instance.resolve(LastSeenStore).init()
+  instance.resolve(NotificationLogStore).init()
 ]);
 var mcp = startMcpServer();
 instance.registerInstance(ChannelNotifier, new ChannelNotifier(mcp));
 instance.resolve(EventStreamService).start();
+instance.resolve(UnansweredTicketsService).start();
 logger.info("meatgg-bot channel started");

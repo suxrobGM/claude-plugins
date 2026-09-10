@@ -97,8 +97,8 @@ LOG_LEVEL=info
     "channelIds": [1],
     "mentionNames": ["jabjabich", "жаб", "жабыч", "ai"]
   },
-  // `actionable` limits the bot to tickets about drops and complaints about bans, and it stays
-  // silent unless a tool of its own settles the case (reissue, bugged-ban lift).
+  // `actionable` limits the bot to tickets and complaints its playbooks cover (drops, bans,
+  // mutes, cheaters, admin abuse, FAQ); chat mentions are answered under either scope.
   "scope": "all",
   // Events replayed per topic after a reconnect, so an outage cannot flood one turn.
   "replayLimit": 5
@@ -112,8 +112,11 @@ there.
 
 - Holds `GET /api/events` open, retrying `1s → 30s`. A rejected key is fatal and says so in the
   channel; three failures in a row also warn there.
-- On each connect it replays tickets and complaints created while it was disconnected, past the
-  watermark in `last-seen.json`. Creations only: no timestamp the list endpoints expose moves for
+- Polls `GET /tickets/unanswered` every 60s, so a ticket waiting on support arrives even
+  when the feed was down. A ticket is announced once, then reminded once if it is still
+  unanswered 10 minutes later, and never again; what has been announced lives in `notification-log.json`.
+- On each connect it also replays complaints created while it was disconnected, past the
+  watermark in the same file. Creations only: no timestamp that list endpoint exposes moves for
   a reply.
 - Drops events the session should not see: **anything the assistant wrote itself** (the guard
   against answering its own replies), disabled topics, unwatched chat channels, chat that does
@@ -134,10 +137,17 @@ installed copy. The `.env` is never touched once it exists.
 
 Full walkthrough: [deploy/README.md](deploy/README.md).
 
+## Troubleshooting the bot box
+
+```bash
+tail -n 200 ~/.claude/channels/meatgg/meatgg-bot.log | grep -E 'stream|unanswered|skipped|warn|error'
+tmux capture-pane -p -t meatgg | tail -40
+```
+
 ## Develop
 
 ```bash
 bun --cwd apps/bot run watch      # run against a local backend
-bun --cwd apps/bot run test       # the pure units: filter, mentions, SSE parser
+bun --cwd apps/bot run test       # the pure units: filter, unanswered-tickets poll, mentions, SSE parser
 bun --cwd apps/bot run typecheck
 ```

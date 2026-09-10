@@ -26,13 +26,17 @@
       "Read(**/id_ed25519*)",
       "Read(**/credentials*)",
       "Read(**/secrets*)",
-      "mcp__meatgg__close_ticket",
       "mcp__meatgg__reopen_ticket",
       "mcp__meatgg__grant_drop",
       "mcp__meatgg__search_audit_logs",
       "mcp__meatgg__get_transactions",
       "mcp__meatgg__list_game_reports"
     ],
-    "allow": ["mcp__meatgg__*", "mcp__plugin_meatgg-bot_meatgg-bot__get_channel_status"]
+    "allow": [
+      "mcp__meatgg__*",
+      "mcp__plugin_meatgg-bot_meatgg-bot__get_channel_status",
+      "WebFetch",
+      "WebSearch"
+    ]
   }
 }

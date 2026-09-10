@@ -13,3 +13,24 @@
   window and nothing bought until they claim it again. Nothing is bought twice.
 - A drop is an item, not money. There is no payout, no swap for another skin and no
   compensation for a missed window.
+
+## Steam restrictions on trading
+
+Steam blocks the offer itself in these cases, and nothing on meat.gg shortens the wait. The
+full list is at `https://help.steampowered.com/ru/faqs/view/451E-96B3-D194-50FC`; in an English reply
+use the same page with `/en/` in place of `/ru/`.
+
+- **No Steam Guard, or it was enabled less than 15 days ago:** the account cannot trade at all.
+- **No Steam Guard Mobile Authenticator, or it was added less than 7 days ago:** offers are
+  held for up to 15 days, and the market rejects the purchase rather than queue it.
+- **A login from a new device:** trades are held for 7 days after that login.
+- **A password changed through account recovery:** trading is blocked for several days.
+- **A trade ban, a limited account without the one time purchase of about $5, or a recent
+  chargeback:** the account cannot receive offers at all.
+
+Three causes are fixable in a minute, and only these are worth a reissue right away:
+
+- **Offline trades** turned off in the Steam privacy settings, which the setting page turns
+  back on.
+- **A private inventory**, set to public in the same place.
+- **A stale trade URL**, replaced with a fresh one on the site.
