@@ -119,6 +119,9 @@ there.
 - On each connect it also replays complaints created while it was disconnected, past the
   watermark in the same file. Creations only: no timestamp that list endpoint exposes moves for
   a reply.
+- On each connect it also replays chat mentions posted while it was away, from the channel
+  history past the watermark in the same file. A first run adopts the backlog without
+  answering it, and a mention older than six hours is left alone.
 - Drops events the session should not see: **anything the assistant wrote itself** (the guard
   against answering its own replies), disabled topics, unwatched chat channels, chat that does
   not address it, and threads a human already answered.
