@@ -1,7 +1,7 @@
 {
   "name": "meatgg-bot",
   "description": "Live support desk for meat.gg, a Counter-Strike 2 community site. New tickets, player complaints and public-chat mentions arrive in a running Claude Code session, which reads the full thread and replies through a permissioned MCP server.",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "author": { "name": "Sukhrob Ilyosbekov", "email": "suxrobgm@gmail.com" },
   "keywords": ["meat.gg", "support", "channel", "mcp"]
 }

@@ -8,10 +8,10 @@ The plugin only listens. Replies go back out through the `meatgg` MCP server the
 at `POST /mcp`, where permissions, rate limits and audit rows live.
 
 ```text
-apps/backend ──── SiteEvent ───> GET /api/events (SSE)
-                                        │
-claude ── plugin:meatgg-bot ────────────┘   (events in)
-       └── mcp meatgg (http) ───────────>   (replies out)
+apps/backend ---- SiteEvent ---> GET /api/events (SSE)
+                                      |
+claude ---- plugin:meatgg-bot --------+   (events in)
+       +---- mcp meatgg (http) ------->   (replies out)
 ```
 
 ## What you need first
@@ -110,7 +110,7 @@ there.
 
 ## How it behaves
 
-- Holds `GET /api/events` open, retrying `1s → 30s`. A rejected key is fatal and says so in the
+- Holds `GET /api/events` open, retrying from `1s` to `30s`. A rejected key is fatal and says so in the
   channel; three failures in a row also warn there.
 - Polls `GET /tickets/unanswered` every 15 minutes, so a ticket waiting on support arrives even
   when the feed was down. Each message is announced once and never repeated; what has been
